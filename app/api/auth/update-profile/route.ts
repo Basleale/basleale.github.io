@@ -15,22 +15,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { new_password } = await request.json()
+    const { newPassword } = await request.json()
 
-    if (new_password) {
-      if (new_password.length < 6) {
-        return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
-      }
-
-      const success = await updateUserPassword(user.username, new_password)
-      if (!success) {
-        return NextResponse.json({ error: "Failed to update password" }, { status: 500 })
-      }
+    if (!newPassword || newPassword.length < 6) {
+      return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true })
+    const success = await updateUserPassword(user.username, newPassword)
+    if (!success) {
+      return NextResponse.json({ error: "Failed to update password" }, { status: 500 })
+    }
+
+    return NextResponse.json({ message: "Password updated successfully" })
   } catch (error) {
-    console.error("Profile update error:", error)
+    console.error("Update profile error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

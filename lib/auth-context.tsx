@@ -3,28 +3,20 @@
 import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
-
-interface User {
-  id: string
-  username: string
-  display_name: string
-  avatar_url?: string
-}
+import type { AuthUser } from "./auth"
 
 interface AuthContextType {
-  user: User | null
-  login: (username: string, password: string) => Promise<void>
-  register: (username: string, password: string) => Promise<void>
+  user: AuthUser | null
+  login: (user: AuthUser, token: string) => void
   logout: () => void
-  updateProfile: (updates: { display_name?: string; password?: string }) => Promise<void>
-  loading: boolean
+  isLoading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const token = localStorage.getItem("auth_token")
@@ -46,49 +38,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.removeItem("auth_token")
         })
         .finally(() => {
-          setLoading(false)
+          setIsLoading(false)
         })
     } else {
-      setLoading(false)
+      setIsLoading(false)
     }
   }, [])
 
-  const login = async (username: string, password: string) => {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, password }),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || "Login failed")
-    }
-
-    localStorage.setItem("auth_token", data.token)
-    setUser(data.user)
-  }
-
-  const register = async (username: string, password: string) => {
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, password }),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || "Registration failed")
-    }
-
-    localStorage.setItem("auth_token", data.token)
-    setUser(data.user)
+  const login = (user: AuthUser, token: string) => {
+    localStorage.setItem("auth_token", token)
+    setUser(user)
   }
 
   const logout = () => {
@@ -96,37 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
-  const updateProfile = async (updates: { display_name?: string; password?: string }) => {
-    const token = localStorage.getItem("auth_token")
-    const response = await fetch("/api/auth/update-profile", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        display_name: updates.display_name,
-        new_password: updates.password,
-      }),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || "Update failed")
-    }
-
-    // Update local user state if display_name changed
-    if (updates.display_name && user) {
-      setUser({ ...user, display_name: updates.display_name })
-    }
-  }
-
-  return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateProfile, loading }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ user, login, logout, isLoading }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

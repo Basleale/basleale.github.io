@@ -2,27 +2,26 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Bell, MessageCircle, Upload, Settings, LogOut, Heart, MessageSquare, Share2 } from "lucide-react"
+import { Bell, MessageCircle, Upload, Settings, LogOut, Home, Search } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import ProtectedRoute from "@/components/protected-route"
+import { toast } from "@/hooks/use-toast"
 
 interface MediaItem {
   id: string
   title: string
-  description: string
   type: "image" | "video" | "audio"
   url: string
   thumbnail?: string
   author: string
-  createdAt: string
   likes: number
   comments: number
-  tags: string[]
+  createdAt: string
 }
 
 export default function HomePage() {
@@ -32,13 +31,13 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState<any[]>([])
 
   useEffect(() => {
-    // Load media items from your existing functionality
-    // This connects to your existing media upload system
-    loadMediaItems()
-    loadNotifications()
+    // Load media items
+    fetchMediaItems()
+    // Load notifications
+    fetchNotifications()
   }, [])
 
-  const loadMediaItems = async () => {
+  const fetchMediaItems = async () => {
     try {
       const response = await fetch("/api/media")
       if (response.ok) {
@@ -46,15 +45,16 @@ export default function HomePage() {
         setMediaItems(data.media || [])
       }
     } catch (error) {
-      console.error("Error loading media:", error)
+      console.error("Error fetching media:", error)
     }
   }
 
-  const loadNotifications = async () => {
+  const fetchNotifications = async () => {
     try {
+      const token = localStorage.getItem("auth_token")
       const response = await fetch("/api/notifications", {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
       })
       if (response.ok) {
@@ -62,25 +62,34 @@ export default function HomePage() {
         setNotifications(data.notifications || [])
       }
     } catch (error) {
-      console.error("Error loading notifications:", error)
+      console.error("Error fetching notifications:", error)
     }
   }
 
   const handleLogout = () => {
     logout()
+    toast({
+      title: "Logged out",
+      description: "You have been logged out successfully.",
+    })
     router.push("/auth")
   }
 
   const handleLike = async (mediaId: string) => {
     try {
+      const token = localStorage.getItem("auth_token")
       const response = await fetch(`/api/media/${mediaId}/like`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
       })
       if (response.ok) {
-        loadMediaItems() // Refresh the media items
+        fetchMediaItems() // Refresh media items
+        toast({
+          title: "Liked!",
+          description: "You liked this media.",
+        })
       }
     } catch (error) {
       console.error("Error liking media:", error)
@@ -91,10 +100,10 @@ export default function HomePage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-900">
         {/* Header */}
-        <header className="bg-slate-800 border-b border-slate-700 p-4">
+        <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-white">Eneskench Summit</h1>
+              <h1 className="text-xl font-bold text-white">Eneskench Summit</h1>
             </div>
 
             <div className="flex items-center space-x-4">
@@ -104,68 +113,51 @@ export default function HomePage() {
                   <Button variant="ghost" size="sm" className="relative text-slate-300 hover:text-white">
                     <Bell className="h-5 w-5" />
                     {notifications.length > 0 && (
-                      <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs">
+                      <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs bg-red-500">
                         {notifications.length}
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-80 bg-slate-800 border-slate-700">
+                <DropdownMenuContent align="end" className="w-80 bg-slate-800 border-slate-700">
                   {notifications.length === 0 ? (
-                    <div className="p-4 text-slate-400 text-center">No notifications yet</div>
+                    <div className="p-4 text-center text-slate-400">No notifications yet</div>
                   ) : (
                     notifications.map((notification, index) => (
-                      <DropdownMenuItem key={index} className="text-slate-300 hover:bg-slate-700">
-                        {notification.message}
+                      <DropdownMenuItem key={index} className="p-4 text-slate-300 hover:bg-slate-700">
+                        <div>
+                          <p className="font-medium">{notification.title}</p>
+                          <p className="text-sm text-slate-400">{notification.message}</p>
+                        </div>
                       </DropdownMenuItem>
                     ))
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Chat Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-slate-300 hover:text-white"
-                onClick={() => router.push("/chat")}
-              >
-                <MessageCircle className="h-5 w-5" />
-              </Button>
-
-              {/* Upload Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-slate-300 hover:text-white"
-                onClick={() => router.push("/upload")}
-              >
-                <Upload className="h-5 w-5" />
-              </Button>
-
-              {/* Profile Dropdown */}
+              {/* Profile */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user?.avatar_url || ""} alt={user?.display_name || ""} />
-                      <AvatarFallback className="bg-slate-600 text-white">
-                        {user?.display_name?.charAt(0).toUpperCase() || "U"}
+                      <AvatarImage src={user?.avatar_url || ""} alt={user?.display_name} />
+                      <AvatarFallback className="bg-slate-700 text-slate-300">
+                        {user?.display_name?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700" align="end">
+                <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
                   <DropdownMenuItem
-                    className="text-slate-300 hover:bg-slate-700"
                     onClick={() => router.push("/settings")}
+                    className="text-slate-300 hover:bg-slate-700"
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-slate-300 hover:bg-slate-700" onClick={handleLogout}>
+                  <DropdownMenuItem onClick={handleLogout} className="text-slate-300 hover:bg-slate-700">
                     <LogOut className="mr-2 h-4 w-4" />
-                    Log out
+                    Logout
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -173,97 +165,115 @@ export default function HomePage() {
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="max-w-7xl mx-auto p-6">
-          <div className="grid gap-6">
-            {mediaItems.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-slate-400 text-lg">No interactions yet</div>
-                <p className="text-slate-500 mt-2">Upload some media to get started!</p>
-                <Button className="mt-4 bg-blue-600 hover:bg-blue-700" onClick={() => router.push("/upload")}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload Media
-                </Button>
-              </div>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {mediaItems.map((item) => (
-                  <Card key={item.id} className="bg-slate-800 border-slate-700">
-                    <CardHeader>
+        <div className="max-w-7xl mx-auto flex">
+          {/* Sidebar */}
+          <aside className="w-64 bg-slate-800 min-h-screen p-4">
+            <nav className="space-y-2">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-700"
+                onClick={() => router.push("/")}
+              >
+                <Home className="mr-2 h-4 w-4" />
+                Home
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-700"
+                onClick={() => router.push("/all-media")}
+              >
+                <Search className="mr-2 h-4 w-4" />
+                Explore
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-700"
+                onClick={() => router.push("/chat")}
+              >
+                <MessageCircle className="mr-2 h-4 w-4" />
+                Chat
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-700"
+                onClick={() => router.push("/upload")}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Upload
+              </Button>
+            </nav>
+          </aside>
+
+          {/* Main Content */}
+          <main className="flex-1 p-6">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">Welcome back, {user?.display_name}!</h2>
+              <p className="text-slate-400">Discover and share amazing content with the community.</p>
+            </div>
+
+            {/* Media Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {mediaItems.length === 0 ? (
+                <div className="col-span-full text-center py-12">
+                  <p className="text-slate-400 text-lg">No interactions yet</p>
+                  <p className="text-slate-500 mt-2">Be the first to upload some content!</p>
+                  <Button className="mt-4 bg-blue-600 hover:bg-blue-700" onClick={() => router.push("/upload")}>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload Content
+                  </Button>
+                </div>
+              ) : (
+                mediaItems.map((item) => (
+                  <Card
+                    key={item.id}
+                    className="bg-slate-800 border-slate-700 hover:border-slate-600 transition-colors"
+                  >
+                    <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-slate-600 text-white">
-                              {item.author.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <CardTitle className="text-white text-sm">{item.author}</CardTitle>
-                            <CardDescription className="text-slate-400 text-xs">
-                              {new Date(item.createdAt).toLocaleDateString()}
-                            </CardDescription>
-                          </div>
-                        </div>
+                        <CardTitle className="text-white text-lg">{item.title}</CardTitle>
                         <Badge variant="secondary" className="bg-slate-700 text-slate-300">
                           {item.type}
                         </Badge>
                       </div>
+                      <p className="text-slate-400 text-sm">by {item.author}</p>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-3">
-                        {item.type === "image" && (
+                      <div className="aspect-video bg-slate-700 rounded-lg mb-4 flex items-center justify-center">
+                        {item.thumbnail ? (
                           <img
-                            src={item.thumbnail || item.url}
+                            src={item.thumbnail || "/placeholder.svg"}
                             alt={item.title}
-                            className="w-full h-48 object-cover rounded-md"
+                            className="w-full h-full object-cover rounded-lg"
                           />
-                        )}
-                        {item.type === "video" && (
-                          <video src={item.url} poster={item.thumbnail} controls className="w-full h-48 rounded-md" />
-                        )}
-                        {item.type === "audio" && <audio src={item.url} controls className="w-full" />}
-
-                        <div>
-                          <h3 className="text-white font-medium">{item.title}</h3>
-                          <p className="text-slate-400 text-sm mt-1">{item.description}</p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-1">
-                          {item.tags.map((tag) => (
-                            <Badge key={tag} variant="outline" className="text-xs border-slate-600 text-slate-400">
-                              #{tag}
-                            </Badge>
-                          ))}
-                        </div>
-
-                        <div className="flex items-center justify-between pt-2">
-                          <div className="flex items-center space-x-4">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-slate-400 hover:text-red-400"
-                              onClick={() => handleLike(item.id)}
-                            >
-                              <Heart className="h-4 w-4 mr-1" />
-                              {item.likes}
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-slate-400 hover:text-blue-400">
-                              <MessageSquare className="h-4 w-4 mr-1" />
-                              {item.comments}
-                            </Button>
+                        ) : (
+                          <div className="text-slate-500">
+                            {item.type === "image" && "🖼️"}
+                            {item.type === "video" && "🎥"}
+                            {item.type === "audio" && "🎵"}
                           </div>
-                          <Button variant="ghost" size="sm" className="text-slate-400 hover:text-green-400">
-                            <Share2 className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4 text-slate-400">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleLike(item.id)}
+                            className="text-slate-400 hover:text-red-400"
+                          >
+                            ❤️ {item.likes}
                           </Button>
+                          <span className="text-sm">💬 {item.comments}</span>
                         </div>
+                        <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</span>
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        </main>
+                ))
+              )}
+            </div>
+          </main>
+        </div>
       </div>
     </ProtectedRoute>
   )

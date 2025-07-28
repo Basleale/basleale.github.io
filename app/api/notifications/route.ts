@@ -15,19 +15,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    // Mock notifications - replace with your actual notification system
+    // Mock notifications for now
     const notifications = [
       {
         id: "1",
-        message: "New media uploaded by user123",
-        type: "upload",
+        title: "New Upload",
+        message: "Someone uploaded new content to the platform",
         timestamp: new Date().toISOString(),
+        read: false,
       },
       {
         id: "2",
-        message: "Someone liked your post",
-        type: "like",
-        timestamp: new Date().toISOString(),
+        title: "Like Received",
+        message: "Your content received a new like",
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        read: false,
       },
     ]
 

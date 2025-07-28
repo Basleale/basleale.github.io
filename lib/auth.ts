@@ -40,6 +40,7 @@ export function verifyToken(token: string): AuthUser | null {
 
 export async function validateUserCredentials(username: string, password: string): Promise<boolean> {
   try {
+    // Use the exact same logic as userExists but also check password
     const response = await fetch(`https://blob.vercel-storage.com/users/${username}/credentials.txt`, {
       headers: {
         Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
@@ -56,8 +57,7 @@ export async function validateUserCredentials(username: string, password: string
     const storedPassword = lines[1]?.replace("password:", "").trim()
 
     return storedUsername === username && storedPassword === password
-  } catch (error) {
-    console.error("Error validating credentials:", error)
+  } catch {
     return false
   }
 }
@@ -65,7 +65,6 @@ export async function validateUserCredentials(username: string, password: string
 export async function createUser(username: string, password: string): Promise<User> {
   const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-  // Store credentials in simple txt format
   const credentialsContent = `username:${username}\npassword:${password}`
 
   await put(`users/${username}/credentials.txt`, credentialsContent, {
@@ -73,7 +72,6 @@ export async function createUser(username: string, password: string): Promise<Us
     token: process.env.BLOB_READ_WRITE_TOKEN,
   })
 
-  // Return user object for token generation
   return {
     id: userId,
     username,

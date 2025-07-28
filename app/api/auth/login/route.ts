@@ -9,13 +9,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
     }
 
-    // Simple validation - check if username and password match what's stored
+    // Use the exact same validation logic as userExists but also check password
     const isValid = await validateUserCredentials(username, password)
     if (!isValid) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Create user object for token
     const authUser = {
       id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       username: username,
