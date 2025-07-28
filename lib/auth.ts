@@ -41,45 +41,41 @@ export function verifyToken(token: string): AuthUser | null {
 // Creative approach: Store credentials as a simple string "username|password"
 export async function storeUserCredentials(username: string, password: string): Promise<boolean> {
   try {
-    const credentialsString = `${username}|${password}`
+    const credentials = JSON.stringify({ username, password });
 
-    await put(`users/${username}/auth.txt`, credentialsString, {
+    await put(`users/${username}/auth.json`, credentials, {
       access: "public",
       token: process.env.BLOB_READ_WRITE_TOKEN,
-    })
+    });
 
-    return true
+    return true;
   } catch (error) {
-    console.error("Error storing credentials:", error)
-    return false
+    console.error("Error storing credentials:", error);
+    return false;
   }
+}
 }
 
 export async function checkUserCredentials(username: string, password: string): Promise<boolean> {
   try {
-    const response = await fetch(`https://blob.vercel-storage.com/users/${username}/auth.txt`, {
+    const response = await fetch(`https://blob.vercel-storage.com/users/${username}/auth.json`, {
       headers: {
         Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
       },
-    })
+    });
 
     if (!response.ok) {
-      console.log("File not found for user:", username)
-      return false
+      console.error("User file not found or failed to fetch.");
+      return false;
     }
 
-    const storedCredentials = await response.text()
-    const expectedCredentials = `${username}|${password}`
-
-    console.log("Stored:", storedCredentials)
-    console.log("Expected:", expectedCredentials)
-    console.log("Match:", storedCredentials.trim() === expectedCredentials.trim())
-
-    return storedCredentials.trim() === expectedCredentials.trim()
+    const data = await response.json();
+    return data.password === password;
   } catch (error) {
-    console.error("Error checking credentials:", error)
-    return false
+    console.error("Error checking credentials:", error);
+    return false;
   }
+}
 }
 
 export async function userExists(username: string): Promise<boolean> {
