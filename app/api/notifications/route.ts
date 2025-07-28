@@ -2,11 +2,22 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
   try {
-    // Placeholder for notifications - in a real app, this would fetch from database
+    // Mock notifications data
     const notifications = [
-      "New media uploaded by user123",
-      "Your post received 5 likes",
-      "Someone commented on your video",
+      {
+        id: "1",
+        message: "New media uploaded by @user123",
+        type: "upload",
+        timestamp: new Date().toISOString(),
+        read: false,
+      },
+      {
+        id: "2",
+        message: "Someone liked your photo",
+        type: "like",
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        read: false,
+      },
     ]
 
     return NextResponse.json({ notifications })

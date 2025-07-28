@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import type { AuthUser } from "./auth"
+import { type AuthUser, verifyToken } from "./auth"
 
 interface AuthContextType {
   user: AuthUser | null
@@ -20,31 +20,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const token = localStorage.getItem("auth_token")
-    const userData = localStorage.getItem("user_data")
-
-    if (token && userData) {
-      try {
-        const parsedUser = JSON.parse(userData)
-        setUser(parsedUser)
-      } catch (error) {
-        console.error("Error parsing user data:", error)
+    if (token) {
+      const userData = verifyToken(token)
+      if (userData) {
+        setUser(userData)
+      } else {
         localStorage.removeItem("auth_token")
-        localStorage.removeItem("user_data")
       }
     }
     setIsLoading(false)
   }, [])
 
-  const login = (user: AuthUser, token: string) => {
+  const login = (userData: AuthUser, token: string) => {
+    setUser(userData)
     localStorage.setItem("auth_token", token)
-    localStorage.setItem("user_data", JSON.stringify(user))
-    setUser(user)
   }
 
   const logout = () => {
-    localStorage.removeItem("auth_token")
-    localStorage.removeItem("user_data")
     setUser(null)
+    localStorage.removeItem("auth_token")
   }
 
   return <AuthContext.Provider value={{ user, login, logout, isLoading }}>{children}</AuthContext.Provider>
