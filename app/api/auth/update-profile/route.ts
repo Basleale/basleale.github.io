@@ -1,70 +1,43 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken, getUserByUsername, updateUser, userExists, hashPassword, generateToken } from "@/lib/auth"
+import { verifyToken, updateUserProfile, updateUserPassword } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Authorization token required" }, { status: 401 })
+      return NextResponse.json({ error: "No token provided" }, { status: 401 })
     }
 
     const token = authHeader.substring(7)
-    const authUser = verifyToken(token)
-    if (!authUser) {
+    const user = verifyToken(token)
+
+    if (!user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { username: newUsername, password: newPassword } = await request.json()
+    const { display_name, new_password } = await request.json()
 
-    const currentUser = await getUserByUsername(authUser.username)
-    if (!currentUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    // Update profile if display_name is provided
+    if (display_name) {
+      const updatedUser = await updateUserProfile(user.username, { display_name })
+      if (!updatedUser) {
+        return NextResponse.json({ error: "Failed to update profile" }, { status: 500 })
+      }
     }
 
-    const updates: any = {}
-
-    // Handle username change
-    if (newUsername && newUsername !== authUser.username) {
-      if (newUsername.length < 3) {
-        return NextResponse.json({ error: "Username must be at least 3 characters long" }, { status: 400 })
-      }
-
-      const usernameExists = await userExists(newUsername)
-      if (usernameExists) {
-        return NextResponse.json({ error: "Username already exists" }, { status: 409 })
-      }
-
-      updates.username = newUsername
-      updates.display_name = newUsername
-    }
-
-    // Handle password change
-    if (newPassword) {
-      if (newPassword.length < 6) {
+    // Update password if new_password is provided
+    if (new_password) {
+      if (new_password.length < 6) {
         return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
       }
 
-      updates.password_hash = await hashPassword(newPassword)
+      const passwordUpdated = await updateUserPassword(user.username, new_password)
+      if (!passwordUpdated) {
+        return NextResponse.json({ error: "Failed to update password" }, { status: 500 })
+      }
     }
 
-    const updatedUser = await updateUser(authUser.username, updates)
-    if (!updatedUser) {
-      return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
-    }
-
-    const newAuthUser = {
-      id: updatedUser.id,
-      username: updatedUser.username,
-      display_name: updatedUser.display_name,
-      avatar_url: updatedUser.avatar_url,
-    }
-
-    const newToken = generateToken(newAuthUser)
-
-    return NextResponse.json({
-      user: newAuthUser,
-      token: newToken,
-    })
+    return NextResponse.json({ message: "Profile updated successfully" })
   } catch (error) {
     console.error("Profile update error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

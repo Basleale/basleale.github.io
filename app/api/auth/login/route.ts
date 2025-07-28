@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getUserByUsername, verifyPassword, generateToken, updateUser } from "@/lib/auth"
+import { getUserCredentials, getUserProfile, generateToken, updateUserProfile } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,25 +9,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
     }
 
-    const user = await getUserByUsername(username)
-    if (!user) {
+    // Get stored credentials
+    const credentials = await getUserCredentials(username)
+    if (!credentials) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // This is the key fix - verify against the stored password_hash
-    const isValidPassword = await verifyPassword(password, user.password_hash)
-    if (!isValidPassword) {
+    // Simple direct comparison - no hashing needed
+    if (credentials.username !== username || credentials.password !== password) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    }
+
+    // Get user profile
+    const userProfile = await getUserProfile(username)
+    if (!userProfile) {
+      return NextResponse.json({ error: "User profile not found" }, { status: 404 })
     }
 
     // Update last active
-    await updateUser(username, { last_active: new Date().toISOString() })
+    await updateUserProfile(username, { last_active: new Date().toISOString() })
 
     const authUser = {
-      id: user.id,
-      username: user.username,
-      display_name: user.display_name,
-      avatar_url: user.avatar_url,
+      id: userProfile.id,
+      username: userProfile.username,
+      display_name: userProfile.display_name,
+      avatar_url: userProfile.avatar_url,
     }
 
     const token = generateToken(authUser)
