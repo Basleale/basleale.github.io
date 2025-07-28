@@ -1,134 +1,72 @@
-import { NextResponse } from "next/server"
-import { list, del } from "@vercel/blob"
+import { type NextRequest, NextResponse } from "next/server"
+import { sql } from "@vercel/postgres"
+import { AuthService } from "@/lib/auth"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    console.log("Fetching media from Vercel Blob...")
+    const authHeader = request.headers.get("authorization")
+    const token = authHeader?.replace("Bearer ", "")
 
-    // List all blobs from Vercel Blob storage
-    const { blobs } = await list()
-
-    console.log(`Found ${blobs.length} blobs in storage`)
-
-    // Transform blob data to our media format
-    const media = blobs.map((blob) => {
-      // Extract metadata from pathname or use defaults
-      const pathParts = blob.pathname.split("/")
-      const fileName = pathParts[pathParts.length - 1]
-      const extension = fileName.split(".").pop()?.toLowerCase() || ""
-
-      // Determine type based on extension
-      const imageExtensions = ["jpg", "jpeg", "png", "gif", "webp", "svg"]
-      const videoExtensions = ["mp4", "mov", "avi", "mkv", "webm"]
-
-      let type: "image" | "video" = "image"
-      if (videoExtensions.includes(extension)) {
-        type = "video"
-      }
-
-      return {
-        id: blob.url, // Use URL as unique ID
-        name: fileName,
-        originalName: fileName,
-        type,
-        extension,
-        url: blob.url,
-        blobUrl: blob.url,
-        size: blob.size,
-        uploadedAt: blob.uploadedAt,
-        uploadedBy: "User", // Default since we don't store this in blob metadata
-        tags: [], // Default empty tags
-      }
-    })
-
-    // Sort by upload date (most recent first)
-    const sortedMedia = media.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
-
-    console.log(`Returning ${sortedMedia.length} media items`)
-    return NextResponse.json({ media: sortedMedia })
-  } catch (error) {
-    console.error("Error fetching media from Vercel Blob:", error)
-    return NextResponse.json({ media: [] })
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const { files } = await request.json()
-
-    if (!files || !Array.isArray(files)) {
-      return NextResponse.json({ error: "Invalid files data" }, { status: 400 })
+    if (!token) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
     }
 
-    console.log(`Received ${files.length} files - they should already be in blob storage`)
-
-    // Files are already uploaded to blob storage by the upload route
-    // We don't need to do anything here since list() will fetch them
-
-    return NextResponse.json({ success: true, count: files.length })
-  } catch (error) {
-    console.error("Error in POST /api/media:", error)
-    return NextResponse.json({ error: "Failed to process media" }, { status: 500 })
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const { ids } = await request.json()
-
-    console.log(`Attempting to delete ${ids.length} media items`)
-
-    // Delete the blob files (ids are the blob URLs)
-    const deletePromises = ids.map(async (blobUrl: string) => {
-      try {
-        console.log(`Deleting blob: ${blobUrl}`)
-        await del(blobUrl)
-        console.log(`Successfully deleted blob: ${blobUrl}`)
-        return { id: blobUrl, success: true }
-      } catch (error) {
-        console.error(`Failed to delete blob ${blobUrl}:`, error)
-        return { id: blobUrl, success: false, error: error.message }
-      }
-    })
-
-    const deleteResults = await Promise.all(deletePromises)
-
-    const successful = deleteResults.filter((r) => r.success)
-    const failed = deleteResults.filter((r) => !r.success)
-
-    console.log(`Blob deletion results: ${successful.length} successful, ${failed.length} failed`)
-
-    if (failed.length > 0) {
-      console.error("Failed deletions:", failed)
+    const user = await AuthService.verifyToken(token)
+    if (!user) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    return NextResponse.json({
-      success: true,
-      deletedCount: successful.length,
-      blobDeletionResults: deleteResults,
-    })
+    // Fetch media with user information and like status
+    const result = await sql`
+      SELECT 
+        m.id,
+        m.url,
+        m.title,
+        m.description,
+        m.created_at,
+        u.id as user_id,
+        u.username,
+        u.display_name,
+        u.avatar_url,
+        COALESCE(like_counts.count, 0) as likes_count,
+        COALESCE(comment_counts.count, 0) as comments_count,
+        CASE WHEN user_likes.user_id IS NOT NULL THEN true ELSE false END as is_liked
+      FROM media m
+      LEFT JOIN users u ON m.user_id = u.id
+      LEFT JOIN (
+        SELECT media_id, COUNT(*) as count
+        FROM likes
+        GROUP BY media_id
+      ) like_counts ON m.id = like_counts.media_id
+      LEFT JOIN (
+        SELECT media_id, COUNT(*) as count
+        FROM comments
+        GROUP BY media_id
+      ) comment_counts ON m.id = comment_counts.media_id
+      LEFT JOIN likes user_likes ON m.id = user_likes.media_id AND user_likes.user_id = ${user.id}
+      ORDER BY m.created_at DESC
+    `
+
+    const media = result.rows.map((row) => ({
+      id: row.id,
+      url: row.url,
+      title: row.title || "Untitled",
+      description: row.description || "",
+      user: {
+        id: row.user_id,
+        username: row.username,
+        display_name: row.display_name,
+        avatar_url: row.avatar_url,
+      },
+      likes_count: Number.parseInt(row.likes_count),
+      comments_count: Number.parseInt(row.comments_count),
+      is_liked: row.is_liked,
+      created_at: row.created_at,
+    }))
+
+    return NextResponse.json({ media })
   } catch (error) {
-    console.error("Error in DELETE /api/media:", error)
-    return NextResponse.json({ error: "Failed to delete media" }, { status: 500 })
-  }
-}
-
-export async function PUT(request: Request) {
-  try {
-    const { mediaId, tags } = await request.json()
-
-    console.log(`Tags update requested for ${mediaId}, but we can't store tags without a database`)
-
-    // Without a database, we can't store tags
-    // You could implement this by encoding tags in the blob pathname
-    // or use a simple key-value store like Vercel KV for just tags
-
-    return NextResponse.json({
-      success: false,
-      message: "Tags not supported without database",
-    })
-  } catch (error) {
-    console.error("Error in PUT /api/media:", error)
-    return NextResponse.json({ error: "Failed to update tags" }, { status: 500 })
+    console.error("Media fetch error:", error)
+    return NextResponse.json({ error: "Failed to fetch media" }, { status: 500 })
   }
 }
