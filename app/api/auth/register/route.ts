@@ -1,33 +1,74 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { AuthService } from "@/lib/auth"
+import { put, list } from "@vercel/blob"
+import { hashPassword, createToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json()
+    const { username, email, password, display_name } = await request.json()
 
-    if (!username || !password) {
-      return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
+    if (!username || !email || !password || !display_name) {
+      return NextResponse.json({ error: "All fields are required" }, { status: 400 })
     }
 
-    if (username.length < 3) {
-      return NextResponse.json({ error: "Username must be at least 3 characters" }, { status: 400 })
+    // Check if users.json exists
+    let users: any[] = []
+    try {
+      const { blobs } = await list({ prefix: "users.json" })
+      if (blobs.length > 0) {
+        const response = await fetch(blobs[0].url)
+        users = await response.json()
+      }
+    } catch (error) {
+      console.log("No existing users file, creating new one")
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
+    // Check if user already exists
+    const existingUser = users.find((u) => u.username === username || u.email === email)
+    if (existingUser) {
+      return NextResponse.json({ error: "User already exists" }, { status: 400 })
     }
 
-    const { user, token } = await AuthService.register(username, password)
+    // Create new user
+    const hashedPassword = await hashPassword(password)
+    const newUser = {
+      id: Date.now().toString(),
+      username,
+      email,
+      display_name,
+      password: hashedPassword,
+      avatar_url: null,
+      created_at: new Date().toISOString(),
+    }
 
-    // Don't send password back to client
-    const { password: _, ...userWithoutPassword } = user
+    users.push(newUser)
 
-    return NextResponse.json({
-      user: userWithoutPassword,
-      token,
+    // Save to blob storage
+    await put("users.json", JSON.stringify(users, null, 2), {
+      access: "public",
+      contentType: "application/json",
     })
-  } catch (error: any) {
+
+    // Create token
+    const token = createToken({
+      id: newUser.id,
+      username: newUser.username,
+      display_name: newUser.display_name,
+      email: newUser.email,
+      created_at: newUser.created_at,
+    })
+
+    const userResponse = {
+      id: newUser.id,
+      username: newUser.username,
+      display_name: newUser.display_name,
+      email: newUser.email,
+      avatar_url: newUser.avatar_url,
+      created_at: newUser.created_at,
+    }
+
+    return NextResponse.json({ user: userResponse, token })
+  } catch (error) {
     console.error("Registration error:", error)
-    return NextResponse.json({ error: error.message || "Registration failed" }, { status: 400 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

@@ -1,18 +1,16 @@
-import { put } from "@vercel/blob"
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@vercel/postgres"
-import { AuthService } from "@/lib/auth"
+import { put } from "@vercel/blob"
+import { verifyToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization")
-    const token = authHeader?.replace("Bearer ", "")
-
-    if (!token) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const user = await AuthService.verifyToken(token)
+    const token = authHeader.substring(7)
+    const user = verifyToken(token)
     if (!user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
@@ -24,24 +22,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    // Upload to Vercel Blob
-    const blob = await put(file.name, file, {
+    // Upload file to blob storage
+    const filename = `uploads/${user.userId}/${Date.now()}-${file.name}`
+    const blob = await put(filename, file, {
       access: "public",
     })
 
-    // Save to database with user association
-    const result = await sql`
-      INSERT INTO media (user_id, filename, original_name, file_size, mime_type, url, title)
-      VALUES (${user.id}, ${blob.pathname}, ${file.name}, ${file.size}, ${file.type}, ${blob.url}, ${file.name})
-      RETURNING id, url, title, created_at
-    `
-
-    return NextResponse.json({
-      success: true,
-      media: result.rows[0],
-    })
+    return NextResponse.json({ url: blob.url, filename: file.name })
   } catch (error) {
-    console.error("Upload error:", error)
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 })
+    console.error("File upload error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

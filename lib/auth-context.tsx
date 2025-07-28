@@ -7,6 +7,7 @@ interface User {
   id: string
   username: string
   display_name: string
+  email: string
   avatar_url?: string
 }
 
@@ -26,7 +27,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Check for stored auth data on mount
     const storedToken = localStorage.getItem("auth_token")
     const storedUser = localStorage.getItem("auth_user")
 

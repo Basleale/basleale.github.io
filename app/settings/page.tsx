@@ -1,270 +1,299 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, Eye, EyeOff } from "lucide-react"
-import ProtectedRoute from "@/components/protected-route"
+import { Separator } from "@/components/ui/separator"
+import { Eye, EyeOff, ArrowLeft, Save, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import ProtectedRoute from "@/components/protected-route"
 
 export default function SettingsPage() {
-  const { user, token } = useAuth()
+  const { user, token, logout } = useAuth()
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+
+  const [displayName, setDisplayName] = useState(user?.display_name || "")
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const [profileData, setProfileData] = useState({
-    display_name: user?.display_name || "",
-  })
-
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  })
-
-  const handleProfileUpdate = async (e: React.FormEvent) => {
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+
+    if (newPassword && newPassword !== confirmPassword) {
+      toast.error("New passwords do not match")
+      return
+    }
+
+    if (newPassword && newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters")
+      return
+    }
+
+    setIsSaving(true)
 
     try {
+      const updateData: any = {}
+
+      if (displayName !== user?.display_name) {
+        updateData.display_name = displayName
+      }
+
+      if (newPassword) {
+        if (!currentPassword) {
+          toast.error("Current password is required to change password")
+          setIsSaving(false)
+          return
+        }
+        updateData.current_password = currentPassword
+        updateData.new_password = newPassword
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        toast.info("No changes to save")
+        setIsSaving(false)
+        return
+      }
+
       const response = await fetch("/api/auth/update-profile", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          display_name: profileData.display_name,
-        }),
+        body: JSON.stringify(updateData),
       })
 
       const data = await response.json()
 
       if (response.ok) {
         toast.success("Profile updated successfully!")
+        setCurrentPassword("")
+        setNewPassword("")
+        setConfirmPassword("")
+
+        // Update local user data if display name changed
+        if (updateData.display_name) {
+          const updatedUser = { ...user!, display_name: displayName }
+          localStorage.setItem("auth_user", JSON.stringify(updatedUser))
+        }
       } else {
-        toast.error(data.error || "Profile update failed")
+        toast.error(data.error || "Failed to update profile")
       }
     } catch (error) {
-      toast.error("An error occurred while updating profile")
+      console.error("Profile update error:", error)
+      toast.error("Failed to update profile")
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error("New passwords do not match")
-      return
-    }
-
-    if (passwordData.newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters")
-      return
-    }
-
-    setIsLoading(true)
-
-    try {
-      const response = await fetch("/api/auth/update-profile", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          password: passwordData.newPassword,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        toast.success("Password changed successfully!")
-        setPasswordData({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        })
-      } else {
-        toast.error(data.error || "Password change failed")
-      }
-    } catch (error) {
-      toast.error("An error occurred while changing password")
-    } finally {
-      setIsLoading(false)
-    }
+  const handleLogout = () => {
+    logout()
+    router.push("/auth")
   }
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-900">
-        {/* Header */}
-        <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={() => router.push("/")} className="text-slate-300 hover:text-white">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <h1 className="text-2xl font-bold text-white">Settings</h1>
-            </div>
+        <div className="max-w-4xl mx-auto p-4">
+          <div className="mb-6">
+            <Button variant="ghost" onClick={() => router.push("/")} className="text-slate-400 hover:text-white mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Home
+            </Button>
+            <h1 className="text-3xl font-bold text-white">Settings</h1>
+            <p className="text-slate-400 mt-2">Manage your account settings and preferences</p>
           </div>
-        </header>
 
-        {/* Main Content */}
-        <main className="max-w-4xl mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Profile Settings */}
             <Card className="bg-slate-800 border-slate-700">
               <CardHeader>
-                <CardTitle className="text-white">Profile Settings</CardTitle>
-                <CardDescription className="text-slate-400">Update your profile information</CardDescription>
+                <CardTitle className="text-white">Profile Information</CardTitle>
+                <CardDescription className="text-slate-400">Update your profile details</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleProfileUpdate} className="space-y-4">
-                  <div>
-                    <Label htmlFor="username" className="text-white">
+                <form onSubmit={handleUpdateProfile} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="username" className="text-slate-300">
                       Username
                     </Label>
                     <Input
                       id="username"
+                      type="text"
                       value={user?.username || ""}
-                      className="bg-slate-700 border-slate-600 text-white"
+                      className="bg-slate-700 border-slate-600 text-slate-400"
                       disabled
                     />
-                    <p className="text-slate-400 text-sm mt-1">Username cannot be changed</p>
+                    <p className="text-xs text-slate-500">Username cannot be changed</p>
                   </div>
-                  <div>
-                    <Label htmlFor="display_name" className="text-white">
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-slate-300">
+                      Email
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={user?.email || ""}
+                      className="bg-slate-700 border-slate-600 text-slate-400"
+                      disabled
+                    />
+                    <p className="text-xs text-slate-500">Email cannot be changed</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="display-name" className="text-slate-300">
                       Display Name
                     </Label>
                     <Input
-                      id="display_name"
-                      value={profileData.display_name}
-                      onChange={(e) => setProfileData({ ...profileData, display_name: e.target.value })}
+                      id="display-name"
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
                       className="bg-slate-700 border-slate-600 text-white"
+                      required
                     />
                   </div>
-                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
-                    {isLoading ? "Updating..." : "Update Profile"}
+
+                  <Separator className="bg-slate-600" />
+
+                  <div className="space-y-4">
+                    <h3 className="text-white font-medium">Change Password</h3>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="current-password" className="text-slate-300">
+                        Current Password
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="current-password"
+                          type={showCurrentPassword ? "text" : "password"}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className="bg-slate-700 border-slate-600 text-white pr-10"
+                          placeholder="Enter current password"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 text-slate-400 hover:text-white"
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        >
+                          {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password" className="text-slate-300">
+                        New Password
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="new-password"
+                          type={showNewPassword ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="bg-slate-700 border-slate-600 text-white pr-10"
+                          placeholder="Enter new password"
+                          minLength={6}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 text-slate-400 hover:text-white"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                        >
+                          {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-password" className="text-slate-300">
+                        Confirm New Password
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="confirm-password"
+                          type={showConfirmPassword ? "text" : "password"}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="bg-slate-700 border-slate-600 text-white pr-10"
+                          placeholder="Confirm new password"
+                          minLength={6}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 text-slate-400 hover:text-white"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isSaving}>
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Changes
+                      </>
+                    )}
                   </Button>
                 </form>
               </CardContent>
             </Card>
 
-            {/* Password Settings */}
+            {/* Account Actions */}
             <Card className="bg-slate-800 border-slate-700">
               <CardHeader>
-                <CardTitle className="text-white">Change Password</CardTitle>
-                <CardDescription className="text-slate-400">Update your account password</CardDescription>
+                <CardTitle className="text-white">Account Actions</CardTitle>
+                <CardDescription className="text-slate-400">Manage your account</CardDescription>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={handlePasswordChange} className="space-y-4">
-                  <div>
-                    <Label htmlFor="current-password" className="text-white">
-                      Current Password
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="current-password"
-                        type={showCurrentPassword ? "text" : "password"}
-                        value={passwordData.currentPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                        className="bg-slate-700 border-slate-600 text-white pr-10"
-                        required
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      >
-                        {showCurrentPassword ? (
-                          <EyeOff className="h-4 w-4 text-slate-400" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-slate-400" />
-                        )}
-                      </Button>
-                    </div>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <h3 className="text-white font-medium">Account Information</h3>
+                  <div className="text-sm text-slate-400">
+                    <p>Member since: {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}</p>
+                    <p>User ID: {user?.id}</p>
                   </div>
-                  <div>
-                    <Label htmlFor="new-password" className="text-white">
-                      New Password
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="new-password"
-                        type={showNewPassword ? "text" : "password"}
-                        value={passwordData.newPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                        className="bg-slate-700 border-slate-600 text-white pr-10"
-                        required
-                        minLength={6}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                      >
-                        {showNewPassword ? (
-                          <EyeOff className="h-4 w-4 text-slate-400" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-slate-400" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="confirm-new-password" className="text-white">
-                      Confirm New Password
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="confirm-new-password"
-                        type={showConfirmPassword ? "text" : "password"}
-                        value={passwordData.confirmPassword}
-                        onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                        className="bg-slate-700 border-slate-600 text-white pr-10"
-                        required
-                        minLength={6}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff className="h-4 w-4 text-slate-400" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-slate-400" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
-                    {isLoading ? "Changing..." : "Change Password"}
+                </div>
+
+                <Separator className="bg-slate-600" />
+
+                <div className="space-y-4">
+                  <h3 className="text-white font-medium">Danger Zone</h3>
+                  <Button variant="destructive" onClick={handleLogout} className="w-full">
+                    Sign Out
                   </Button>
-                </form>
+                </div>
               </CardContent>
             </Card>
           </div>
-        </main>
+        </div>
       </div>
     </ProtectedRoute>
   )

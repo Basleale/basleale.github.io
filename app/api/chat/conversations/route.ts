@@ -1,67 +1,38 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { put, list } from "@vercel/blob"
-import { AuthService } from "@/lib/auth"
-
-interface Conversation {
-  id: string
-  participants: string[]
-  type: "private" | "general"
-  created_at: string
-  updated_at: string
-  last_message?: {
-    content: string
-    author: string
-    timestamp: string
-  }
-}
+import { verifyToken } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Authorization token required" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const token = authHeader.substring(7)
-    const user = await AuthService.verifyToken(token)
-
+    const user = verifyToken(token)
     if (!user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    // Get all conversations
-    const { blobs } = await list({ prefix: "conversations.json" })
-    let conversations: Conversation[] = []
-
-    if (blobs.length > 0) {
-      const response = await fetch(blobs[0].url)
-      conversations = await response.json()
+    // Get conversations from blob storage
+    let conversations: any[] = []
+    try {
+      const { blobs } = await list({ prefix: "conversations.json" })
+      if (blobs.length > 0) {
+        const response = await fetch(blobs[0].url)
+        conversations = await response.json()
+      }
+    } catch (error) {
+      console.log("No conversations found")
     }
 
-    // Filter conversations for this user
-    const userConversations = conversations.filter(
-      (conv) => conv.type === "general" || conv.participants.includes(user.id),
-    )
+    // Filter conversations for current user
+    const userConversations = conversations.filter((conv) => conv.participants.includes(user.userId))
 
-    // Get user details for participants
-    const allUsers = await AuthService.getAllUsers()
-    const conversationsWithUsers = await Promise.all(
-      userConversations.map(async (conv) => {
-        const participantUsers = conv.participants
-          .map((id) => allUsers.find((u) => u.id === id))
-          .filter(Boolean)
-          .map(({ password, ...user }) => user) // Remove password
-
-        return {
-          ...conv,
-          participants: participantUsers,
-        }
-      }),
-    )
-
-    return NextResponse.json({ conversations: conversationsWithUsers })
+    return NextResponse.json({ conversations: userConversations })
   } catch (error) {
-    console.error("Conversations fetch error:", error)
+    console.error("Get conversations error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
@@ -70,48 +41,44 @@ export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Authorization token required" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const token = authHeader.substring(7)
-    const user = await AuthService.verifyToken(token)
-
+    const user = verifyToken(token)
     if (!user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { participantId, type } = await request.json()
+    const { participant_id, type = "private" } = await request.json()
 
-    if (type === "private" && !participantId) {
-      return NextResponse.json({ error: "Participant ID required for private chat" }, { status: 400 })
-    }
-
-    // Get existing conversations
-    const { blobs } = await list({ prefix: "conversations.json" })
-    let conversations: Conversation[] = []
-
-    if (blobs.length > 0) {
-      const response = await fetch(blobs[0].url)
-      conversations = await response.json()
+    // Get conversations from blob storage
+    let conversations: any[] = []
+    try {
+      const { blobs } = await list({ prefix: "conversations.json" })
+      if (blobs.length > 0) {
+        const response = await fetch(blobs[0].url)
+        conversations = await response.json()
+      }
+    } catch (error) {
+      console.log("No existing conversations, creating new file")
     }
 
     // Check if conversation already exists
-    if (type === "private") {
-      const existingConv = conversations.find(
-        (conv) =>
-          conv.type === "private" && conv.participants.includes(user.id) && conv.participants.includes(participantId),
-      )
+    const existingConversation = conversations.find(
+      (conv) =>
+        conv.type === type && conv.participants.includes(user.userId) && conv.participants.includes(participant_id),
+    )
 
-      if (existingConv) {
-        return NextResponse.json({ conversation: existingConv })
-      }
+    if (existingConversation) {
+      return NextResponse.json({ conversation: existingConversation })
     }
 
     // Create new conversation
-    const newConversation: Conversation = {
+    const newConversation = {
       id: Date.now().toString(),
-      participants: type === "private" ? [user.id, participantId] : [],
       type,
+      participants: type === "general" ? ["general"] : [user.userId, participant_id],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
@@ -119,14 +86,14 @@ export async function POST(request: NextRequest) {
     conversations.push(newConversation)
 
     // Save conversations
-    const blob = new Blob([JSON.stringify(conversations, null, 2)], {
-      type: "application/json",
+    await put("conversations.json", JSON.stringify(conversations, null, 2), {
+      access: "public",
+      contentType: "application/json",
     })
-    await put("conversations.json", blob, { access: "public" })
 
     return NextResponse.json({ conversation: newConversation })
   } catch (error) {
-    console.error("Conversation creation error:", error)
+    console.error("Create conversation error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
