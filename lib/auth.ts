@@ -38,51 +38,53 @@ export function verifyToken(token: string): AuthUser | null {
   }
 }
 
-export async function validateUserCredentials(username: string, password: string): Promise<boolean> {
+// Creative approach: Store credentials as a simple string "username|password"
+export async function storeUserCredentials(username: string, password: string): Promise<boolean> {
   try {
-    // Use the exact same logic as userExists but also check password
-    const response = await fetch(`https://blob.vercel-storage.com/users/${username}/credentials.txt`, {
+    const credentialsString = `${username}|${password}`
+
+    await put(`users/${username}/auth.txt`, credentialsString, {
+      access: "public",
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    })
+
+    return true
+  } catch (error) {
+    console.error("Error storing credentials:", error)
+    return false
+  }
+}
+
+export async function checkUserCredentials(username: string, password: string): Promise<boolean> {
+  try {
+    const response = await fetch(`https://blob.vercel-storage.com/users/${username}/auth.txt`, {
       headers: {
         Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
       },
     })
 
     if (!response.ok) {
+      console.log("File not found for user:", username)
       return false
     }
 
-    const credentialsText = await response.text()
-    const lines = credentialsText.split("\n")
-    const storedUsername = lines[0]?.replace("username:", "").trim()
-    const storedPassword = lines[1]?.replace("password:", "").trim()
+    const storedCredentials = await response.text()
+    const expectedCredentials = `${username}|${password}`
 
-    return storedUsername === username && storedPassword === password
-  } catch {
+    console.log("Stored:", storedCredentials)
+    console.log("Expected:", expectedCredentials)
+    console.log("Match:", storedCredentials.trim() === expectedCredentials.trim())
+
+    return storedCredentials.trim() === expectedCredentials.trim()
+  } catch (error) {
+    console.error("Error checking credentials:", error)
     return false
-  }
-}
-
-export async function createUser(username: string, password: string): Promise<User> {
-  const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-
-  const credentialsContent = `username:${username}\npassword:${password}`
-
-  await put(`users/${username}/credentials.txt`, credentialsContent, {
-    access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-  })
-
-  return {
-    id: userId,
-    username,
-    display_name: username,
-    avatar_url: null,
   }
 }
 
 export async function userExists(username: string): Promise<boolean> {
   try {
-    await head(`users/${username}/credentials.txt`, {
+    await head(`users/${username}/auth.txt`, {
       token: process.env.BLOB_READ_WRITE_TOKEN,
     })
     return true
@@ -92,17 +94,5 @@ export async function userExists(username: string): Promise<boolean> {
 }
 
 export async function updateUserPassword(username: string, newPassword: string): Promise<boolean> {
-  try {
-    const credentialsContent = `username:${username}\npassword:${newPassword}`
-
-    await put(`users/${username}/credentials.txt`, credentialsContent, {
-      access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    })
-
-    return true
-  } catch (error) {
-    console.error("Error updating user password:", error)
-    return false
-  }
+  return await storeUserCredentials(username, newPassword)
 }

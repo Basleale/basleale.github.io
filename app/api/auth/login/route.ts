@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { validateUserCredentials, generateToken } from "@/lib/auth"
+import { checkUserCredentials, generateToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,8 +9,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
     }
 
-    // Use the exact same validation logic as userExists but also check password
-    const isValid = await validateUserCredentials(username, password)
+    console.log("Login attempt for:", username)
+
+    const isValid = await checkUserCredentials(username, password)
     if (!isValid) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }

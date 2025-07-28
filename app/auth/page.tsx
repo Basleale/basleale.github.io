@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -7,19 +9,23 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
-import { toast } from "@/hooks/use-toast"
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [error, setError] = useState("")
   const router = useRouter()
   const { login } = useAuth()
 
-  const handleLogin = async (formData: FormData) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
     setIsLoading(true)
+    setError("")
+
+    const formData = new FormData(e.currentTarget)
     const username = formData.get("username") as string
     const password = formData.get("password") as string
 
@@ -34,41 +40,29 @@ export default function AuthPage() {
 
       if (response.ok) {
         login(data.user, data.token)
-        toast({
-          title: "Welcome back!",
-          description: "You have been logged in successfully.",
-        })
         router.push("/")
       } else {
-        toast({
-          title: "Login failed",
-          description: data.error || "Invalid credentials",
-          variant: "destructive",
-        })
+        setError(data.error || "Login failed")
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      })
+      setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleRegister = async (formData: FormData) => {
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
     setIsLoading(true)
+    setError("")
+
+    const formData = new FormData(e.currentTarget)
     const username = formData.get("username") as string
     const password = formData.get("password") as string
     const confirmPassword = formData.get("confirmPassword") as string
 
     if (password !== confirmPassword) {
-      toast({
-        title: "Password mismatch",
-        description: "Passwords do not match",
-        variant: "destructive",
-      })
+      setError("Passwords do not match")
       setIsLoading(false)
       return
     }
@@ -84,24 +78,12 @@ export default function AuthPage() {
 
       if (response.ok) {
         login(data.user, data.token)
-        toast({
-          title: "Account created!",
-          description: "Welcome to Eneskench Summit!",
-        })
         router.push("/")
       } else {
-        toast({
-          title: "Registration failed",
-          description: data.error || "Failed to create account",
-          variant: "destructive",
-        })
+        setError(data.error || "Registration failed")
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      })
+      setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -112,7 +94,7 @@ export default function AuthPage() {
       <Card className="w-full max-w-md bg-slate-800 border-slate-700">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-white">Eneskench Summit</CardTitle>
-          <CardDescription className="text-slate-400">Join the creative community</CardDescription>
+          <CardDescription className="text-slate-400">Join the ultimate media sharing platform</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
@@ -132,7 +114,7 @@ export default function AuthPage() {
             </TabsList>
 
             <TabsContent value="login">
-              <form action={handleLogin} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-username" className="text-slate-300">
                     Username
@@ -170,21 +152,15 @@ export default function AuthPage() {
                     </Button>
                   </div>
                 </div>
+                {error && <p className="text-red-400 text-sm">{error}</p>}
                 <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Logging in...
-                    </>
-                  ) : (
-                    "Login"
-                  )}
+                  {isLoading ? "Logging in..." : "Login"}
                 </Button>
               </form>
             </TabsContent>
 
             <TabsContent value="register">
-              <form action={handleRegister} className="space-y-4">
+              <form onSubmit={handleRegister} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="register-username" className="text-slate-300">
                     Username
@@ -246,19 +222,13 @@ export default function AuthPage() {
                     </Button>
                   </div>
                 </div>
+                {error && <p className="text-red-400 text-sm">{error}</p>}
                 <Button
                   type="submit"
                   className="w-full bg-green-600 hover:bg-green-700 text-white"
                   disabled={isLoading}
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    "Create Account"
-                  )}
+                  {isLoading ? "Creating account..." : "Create Account"}
                 </Button>
               </form>
             </TabsContent>

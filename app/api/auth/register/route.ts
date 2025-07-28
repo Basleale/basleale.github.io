@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createUser, userExists, generateToken } from "@/lib/auth"
+import { storeUserCredentials, userExists, generateToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,12 +22,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username already exists" }, { status: 409 })
     }
 
-    const user = await createUser(username, password)
+    const success = await storeUserCredentials(username, password)
+    if (!success) {
+      return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
+    }
+
     const authUser = {
-      id: user.id,
-      username: user.username,
-      display_name: user.display_name,
-      avatar_url: user.avatar_url,
+      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      username: username,
+      display_name: username,
+      avatar_url: null,
     }
 
     const token = generateToken(authUser)
