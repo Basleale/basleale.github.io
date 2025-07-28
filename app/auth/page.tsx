@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -68,6 +67,16 @@ export default function AuthPage() {
 
     if (registerData.password !== registerData.confirmPassword) {
       toast.error("Passwords do not match")
+      return
+    }
+
+    if (registerData.password.length < 6) {
+      toast.error("Password must be at least 6 characters")
+      return
+    }
+
+    if (registerData.username.length < 3) {
+      toast.error("Username must be at least 3 characters")
       return
     }
 
@@ -197,6 +206,7 @@ export default function AuthPage() {
                       onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
                       className="bg-slate-700 border-slate-600 text-white"
                       required
+                      minLength={3}
                     />
                   </div>
                   <div>
@@ -211,6 +221,7 @@ export default function AuthPage() {
                         onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
                         className="bg-slate-700 border-slate-600 text-white pr-10"
                         required
+                        minLength={6}
                       />
                       <Button
                         type="button"
@@ -239,6 +250,7 @@ export default function AuthPage() {
                         onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
                         className="bg-slate-700 border-slate-600 text-white pr-10"
                         required
+                        minLength={6}
                       />
                       <Button
                         type="button"

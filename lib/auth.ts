@@ -1,97 +1,138 @@
-import { put, head } from "@vercel/blob"
+import { put, list } from "@vercel/blob"
 
 export interface User {
   id: string
   username: string
+  password: string
   display_name: string
   avatar_url?: string
+  created_at: string
+  updated_at: string
 }
 
-export interface AuthUser {
-  id: string
-  username: string
-  display_name: string
-  avatar_url?: string
-}
+export class AuthService {
+  private static readonly USERS_FILE = "users.json"
 
-// Simple token generation without JWT to avoid the error
-export function generateToken(user: AuthUser): string {
-  const tokenData = {
-    id: user.id,
-    username: user.username,
-    display_name: user.display_name,
-    timestamp: Date.now(),
-  }
-  return btoa(JSON.stringify(tokenData))
-}
+  // Get all users from JSON file
+  static async getAllUsers(): Promise<User[]> {
+    try {
+      const { blobs } = await list({ prefix: this.USERS_FILE })
+      if (blobs.length === 0) {
+        return []
+      }
 
-export function verifyToken(token: string): AuthUser | null {
-  try {
-    const decoded = JSON.parse(atob(token))
-    return {
-      id: decoded.id,
-      username: decoded.username,
-      display_name: decoded.display_name,
-      avatar_url: null,
+      const response = await fetch(blobs[0].url)
+      const users = await response.json()
+      return users || []
+    } catch (error) {
+      console.error("Error fetching users:", error)
+      return []
     }
-  } catch {
-    return null
   }
-}
 
-// Store credentials as JSON for better structure
-export async function storeUserCredentials(username: string, password: string): Promise<boolean> {
-  try {
-    const credentials = JSON.stringify({ username, password })
-
-    await put(`users/${username}/auth.json`, credentials, {
-      access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    })
-
-    return true
-  } catch (error) {
-    console.error("Error storing credentials:", error)
-    return false
+  // Save users to JSON file
+  static async saveUsers(users: User[]): Promise<void> {
+    try {
+      const blob = new Blob([JSON.stringify(users, null, 2)], {
+        type: "application/json",
+      })
+      await put(this.USERS_FILE, blob, { access: "public" })
+    } catch (error) {
+      console.error("Error saving users:", error)
+      throw error
+    }
   }
-}
 
-export async function checkUserCredentials(username: string, password: string): Promise<boolean> {
-  try {
-    const response = await fetch(`https://blob.vercel-storage.com/users/${username}/auth.json`, {
-      headers: {
-        Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
-      },
-    })
+  // Find user by username
+  static async findUserByUsername(username: string): Promise<User | null> {
+    const users = await this.getAllUsers()
+    return users.find((user) => user.username === username) || null
+  }
 
-    if (!response.ok) {
-      console.error("User file not found or failed to fetch for:", username)
-      return false
+  // Find user by ID
+  static async findUserById(id: string): Promise<User | null> {
+    const users = await this.getAllUsers()
+    return users.find((user) => user.id === id) || null
+  }
+
+  // Register new user
+  static async register(username: string, password: string): Promise<{ user: User; token: string }> {
+    const users = await this.getAllUsers()
+
+    // Check if username already exists
+    if (users.some((user) => user.username === username)) {
+      throw new Error("Username already exists")
     }
 
-    const data = await response.json()
-    console.log("Stored credentials:", data)
-    console.log("Checking password:", password)
-    console.log("Match:", data.password === password)
+    const newUser: User = {
+      id: Date.now().toString(),
+      username,
+      password, // In production, hash this password
+      display_name: username,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
 
-    return data.username === username && data.password === password
-  } catch (error) {
-    console.error("Error checking credentials:", error)
-    return false
+    users.push(newUser)
+    await this.saveUsers(users)
+
+    const token = this.generateToken(newUser)
+    return { user: newUser, token }
   }
-}
 
-export async function userExists(username: string): Promise<boolean> {
-  try {
-    await head(`users/${username}/auth.json`, {
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    })
-    return true
-  } catch {
-    return false
+  // Login user
+  static async login(username: string, password: string): Promise<{ user: User; token: string }> {
+    const user = await this.findUserByUsername(username)
+
+    if (!user || user.password !== password) {
+      throw new Error("Invalid credentials")
+    }
+
+    const token = this.generateToken(user)
+    return { user, token }
   }
-}
 
-export async function updateUserPassword(username: string, newPassword: string): Promise<boolean> {
-  return await storeUserCredentials(username, newPassword)
+  // Generate simple token
+  static generateToken(user: User): string {
+    const payload = {
+      id: user.id,
+      username: user.username,
+      exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+    }
+    return btoa(JSON.stringify(payload))
+  }
+
+  // Verify token
+  static async verifyToken(token: string): Promise<User | null> {
+    try {
+      const payload = JSON.parse(atob(token))
+
+      if (payload.exp < Date.now()) {
+        return null // Token expired
+      }
+
+      return await this.findUserById(payload.id)
+    } catch (error) {
+      return null
+    }
+  }
+
+  // Update user profile
+  static async updateProfile(userId: string, updates: Partial<User>): Promise<User> {
+    const users = await this.getAllUsers()
+    const userIndex = users.findIndex((user) => user.id === userId)
+
+    if (userIndex === -1) {
+      throw new Error("User not found")
+    }
+
+    users[userIndex] = {
+      ...users[userIndex],
+      ...updates,
+      updated_at: new Date().toISOString(),
+    }
+
+    await this.saveUsers(users)
+    return users[userIndex]
+  }
 }

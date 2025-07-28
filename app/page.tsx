@@ -1,61 +1,65 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Bell, MessageCircle, Settings, LogOut, Upload, Users, ImageIcon } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Upload, Heart, MessageCircle, Share2, Settings, LogOut, Bell, Search, Users } from "lucide-react"
 import ProtectedRoute from "@/components/protected-route"
 
 interface MediaItem {
   id: string
-  title: string
-  type: "image" | "video"
   url: string
-  thumbnail: string
-  author: string
-  likes: number
-  comments: number
-  createdAt: string
+  title: string
+  description: string
+  user: {
+    id: string
+    username: string
+    display_name: string
+    avatar_url?: string
+  }
+  likes_count: number
+  comments_count: number
+  is_liked: boolean
+  created_at: string
 }
 
 export default function HomePage() {
-  const { user, logout } = useAuth()
+  const { user, logout, token } = useAuth()
   const router = useRouter()
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
-  const [notifications, setNotifications] = useState<any[]>([])
+  const [media, setMedia] = useState<MediaItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [notifications] = useState([
+    { id: "1", message: "Welcome to Eneskench Summit!", time: "2 hours ago" },
+    { id: "2", message: "New features available in chat", time: "1 day ago" },
+  ])
 
   useEffect(() => {
-    // Load media items and notifications
-    loadMediaItems()
-    loadNotifications()
+    loadMedia()
   }, [])
 
-  const loadMediaItems = async () => {
+  const loadMedia = async () => {
     try {
-      const response = await fetch("/api/media")
+      const response = await fetch("/api/media", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
       if (response.ok) {
         const data = await response.json()
-        setMediaItems(data.media || [])
+        setMedia(data.media || [])
       }
     } catch (error) {
       console.error("Error loading media:", error)
-    }
-  }
-
-  const loadNotifications = async () => {
-    try {
-      const response = await fetch("/api/notifications")
-      if (response.ok) {
-        const data = await response.json()
-        setNotifications(data.notifications || [])
-      }
-    } catch (error) {
-      console.error("Error loading notifications:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -63,6 +67,12 @@ export default function HomePage() {
     logout()
     router.push("/auth")
   }
+
+  const filteredMedia = media.filter(
+    (item) =>
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
 
   return (
     <ProtectedRoute>
@@ -72,94 +82,76 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <h1 className="text-2xl font-bold text-blue-400">Eneskench Summit</h1>
-              <nav className="hidden md:flex space-x-6">
-                <Button variant="ghost" className="text-slate-300 hover:text-white">
-                  <ImageIcon className="w-4 h-4 mr-2" />
-                  All Media
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="text-slate-300 hover:text-white"
-                  onClick={() => router.push("/chat")}
-                >
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  Chat
-                </Button>
-                <Button variant="ghost" className="text-slate-300 hover:text-white">
-                  <Users className="w-4 h-4 mr-2" />
-                  Community
-                </Button>
-              </nav>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Input
+                  placeholder="Search media..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-slate-700 border-slate-600 text-white w-64"
+                />
+              </div>
             </div>
 
             <div className="flex items-center space-x-4">
-              <Button variant="outline" className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload
+              <Button variant="ghost" onClick={() => router.push("/chat")} className="text-slate-300 hover:text-white">
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Chat
               </Button>
 
-              {/* Notifications */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="w-5 h-5 text-slate-300" />
+                  <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white relative">
+                    <Bell className="w-4 h-4" />
                     {notifications.length > 0 && (
-                      <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs bg-red-500">
+                      <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs bg-red-500">
                         {notifications.length}
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80 bg-slate-800 border-slate-700">
-                  <div className="p-4">
+                <DropdownMenuContent className="bg-slate-800 border-slate-700 w-80">
+                  <div className="p-2">
                     <h3 className="font-semibold text-white mb-2">Notifications</h3>
                     {notifications.length === 0 ? (
                       <p className="text-slate-400 text-sm">No new notifications</p>
                     ) : (
-                      <div className="space-y-2">
-                        {notifications.map((notification, index) => (
-                          <div key={index} className="p-2 bg-slate-700 rounded text-sm text-white">
-                            {notification.message}
-                          </div>
-                        ))}
-                      </div>
+                      notifications.map((notification) => (
+                        <div key={notification.id} className="p-2 hover:bg-slate-700 rounded">
+                          <p className="text-white text-sm">{notification.message}</p>
+                          <p className="text-slate-400 text-xs">{notification.time}</p>
+                        </div>
+                      ))
                     )}
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Profile Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                  <Button variant="ghost" className="flex items-center space-x-2 text-slate-300 hover:text-white">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user?.avatar_url || ""} alt={user?.display_name || ""} />
                       <AvatarFallback className="bg-blue-600 text-white">
-                        {user?.display_name?.charAt(0).toUpperCase() || "U"}
+                        {user?.username?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
+                    <span>{user?.display_name}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700" align="end" forceMount>
-                  <div className="flex items-center justify-start gap-2 p-2">
-                    <div className="flex flex-col space-y-1 leading-none">
-                      <p className="font-medium text-white">{user?.display_name}</p>
-                      <p className="w-[200px] truncate text-sm text-slate-400">@{user?.username}</p>
-                    </div>
-                  </div>
+                <DropdownMenuContent className="bg-slate-800 border-slate-700">
                   <DropdownMenuItem
                     onClick={() => router.push("/settings")}
                     className="text-slate-300 hover:text-white hover:bg-slate-700"
                   >
-                    <Settings className="mr-2 h-4 w-4" />
+                    <Settings className="w-4 h-4 mr-2" />
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={handleLogout}
                     className="text-slate-300 hover:text-white hover:bg-slate-700"
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log out
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -169,48 +161,104 @@ export default function HomePage() {
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mediaItems.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <div className="text-slate-400 text-lg mb-4">No interactions yet</div>
-                <p className="text-slate-500 mb-6">Be the first to share something amazing!</p>
-                <Button className="bg-blue-600 hover:bg-blue-700">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload Media
-                </Button>
-              </div>
-            ) : (
-              mediaItems.map((item) => (
-                <Card key={item.id} className="bg-slate-800 border-slate-700 overflow-hidden">
-                  <div className="aspect-video bg-slate-700 relative">
-                    <img
-                      src={item.thumbnail || "/placeholder.svg"}
-                      alt={item.title}
-                      className="w-full h-full object-cover"
-                    />
-                    {item.type === "video" && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-black bg-opacity-50 rounded-full p-3">
-                          <div className="w-0 h-0 border-l-[12px] border-l-white border-y-[8px] border-y-transparent ml-1"></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-white text-lg">{item.title}</CardTitle>
-                    <CardDescription className="text-slate-400">
-                      by {item.author} • {new Date(item.createdAt).toLocaleDateString()}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex items-center justify-between text-sm text-slate-400">
-                      <span>{item.likes} likes</span>
-                      <span>{item.comments} comments</span>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Sidebar */}
+            <div className="lg:col-span-1">
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white">Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Media
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 bg-transparent"
+                    onClick={() => router.push("/chat")}
+                  >
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Join Chat
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 bg-transparent"
+                    onClick={() => router.push("/all-media")}
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    Browse All
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Media Feed */}
+            <div className="lg:col-span-3">
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white">Media Feed</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? (
+                    <div className="text-center py-8">
+                      <div className="text-slate-400">Loading media...</div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+                  ) : filteredMedia.length === 0 ? (
+                    <div className="text-center py-8">
+                      <div className="text-slate-400">
+                        {searchQuery ? "No media found matching your search." : "No interactions yet"}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredMedia.map((item) => (
+                        <Card key={item.id} className="bg-slate-700 border-slate-600">
+                          <CardContent className="p-4">
+                            <div className="aspect-square bg-slate-600 rounded-lg mb-3 overflow-hidden">
+                              <img
+                                src={item.url || "/placeholder.svg"}
+                                alt={item.title}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <h3 className="text-white font-semibold mb-2">{item.title}</h3>
+                            <p className="text-slate-300 text-sm mb-3">{item.description}</p>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarFallback className="bg-blue-600 text-white text-xs">
+                                    {item.user.username.charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-slate-400 text-sm">{item.user.display_name}</span>
+                              </div>
+                              <div className="flex items-center space-x-3">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`text-slate-400 hover:text-red-400 ${item.is_liked ? "text-red-400" : ""}`}
+                                >
+                                  <Heart className="w-4 h-4 mr-1" />
+                                  {item.likes_count}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-blue-400">
+                                  <MessageCircle className="w-4 h-4 mr-1" />
+                                  {item.comments_count}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-green-400">
+                                  <Share2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </main>
       </div>

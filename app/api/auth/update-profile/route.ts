@@ -1,27 +1,35 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { updateUserPassword, verifyToken } from "@/lib/auth"
+import { AuthService } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, newPassword } = await request.json()
-
-    if (!token || !newPassword) {
-      return NextResponse.json({ error: "Token and new password are required" }, { status: 400 })
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Authorization token required" }, { status: 401 })
     }
 
-    const user = verifyToken(token)
+    const token = authHeader.substring(7)
+    const user = await AuthService.verifyToken(token)
+
     if (!user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const success = await updateUserPassword(user.username, newPassword)
-    if (!success) {
-      return NextResponse.json({ error: "Failed to update password" }, { status: 500 })
+    const updates = await request.json()
+
+    // If password is being updated, validate it
+    if (updates.password && updates.password.length < 6) {
+      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
     }
 
-    return NextResponse.json({ message: "Password updated successfully" })
-  } catch (error) {
-    console.error("Password update error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const updatedUser = await AuthService.updateProfile(user.id, updates)
+
+    // Don't send password back to client
+    const { password: _, ...userWithoutPassword } = updatedUser
+
+    return NextResponse.json({ user: userWithoutPassword })
+  } catch (error: any) {
+    console.error("Profile update error:", error)
+    return NextResponse.json({ error: error.message || "Profile update failed" }, { status: 500 })
   }
 }

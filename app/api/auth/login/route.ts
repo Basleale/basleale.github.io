@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { checkUserCredentials, generateToken } from "@/lib/auth"
+import { AuthService } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,28 +9,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
     }
 
-    console.log("Login attempt for:", username)
+    const { user, token } = await AuthService.login(username, password)
 
-    const isValid = await checkUserCredentials(username, password)
-    if (!isValid) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-    }
-
-    const authUser = {
-      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      username: username,
-      display_name: username,
-      avatar_url: null,
-    }
-
-    const token = generateToken(authUser)
+    // Don't send password back to client
+    const { password: _, ...userWithoutPassword } = user
 
     return NextResponse.json({
-      user: authUser,
+      user: userWithoutPassword,
       token,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Login error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: error.message || "Login failed" }, { status: 401 })
   }
 }

@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
@@ -10,22 +9,56 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft, Eye, EyeOff } from "lucide-react"
-import { toast } from "sonner"
 import ProtectedRoute from "@/components/protected-route"
+import { toast } from "sonner"
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth()
+  const { user, token } = useAuth()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
+  const [profileData, setProfileData] = useState({
+    display_name: user?.display_name || "",
+  })
+
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   })
+
+  const handleProfileUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+
+    try {
+      const response = await fetch("/api/auth/update-profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          display_name: profileData.display_name,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast.success("Profile updated successfully!")
+      } else {
+        toast.error(data.error || "Profile update failed")
+      }
+    } catch (error) {
+      toast.error("An error occurred while updating profile")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,39 +69,38 @@ export default function SettingsPage() {
     }
 
     if (passwordData.newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters long")
+      toast.error("New password must be at least 6 characters")
       return
     }
 
     setIsLoading(true)
 
     try {
-      const token = localStorage.getItem("auth_token")
       const response = await fetch("/api/auth/update-profile", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          token,
-          newPassword: passwordData.newPassword,
+          password: passwordData.newPassword,
         }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        toast.success("Password updated successfully")
+        toast.success("Password changed successfully!")
         setPasswordData({
           currentPassword: "",
           newPassword: "",
           confirmPassword: "",
         })
       } else {
-        toast.error(data.error || "Failed to update password")
+        toast.error(data.error || "Password change failed")
       }
     } catch (error) {
-      toast.error("An error occurred while updating password")
+      toast.error("An error occurred while changing password")
     } finally {
       setIsLoading(false)
     }
@@ -79,7 +111,7 @@ export default function SettingsPage() {
       <div className="min-h-screen bg-slate-900">
         {/* Header */}
         <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Button variant="ghost" onClick={() => router.push("/")} className="text-slate-300 hover:text-white">
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -92,49 +124,50 @@ export default function SettingsPage() {
 
         {/* Main Content */}
         <main className="max-w-4xl mx-auto px-4 py-8">
-          <div className="grid gap-6">
-            {/* Profile Information */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Profile Settings */}
             <Card className="bg-slate-800 border-slate-700">
               <CardHeader>
-                <CardTitle className="text-white">Profile Information</CardTitle>
-                <CardDescription className="text-slate-400">Your account details and preferences</CardDescription>
+                <CardTitle className="text-white">Profile Settings</CardTitle>
+                <CardDescription className="text-slate-400">Update your profile information</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="username" className="text-white">
-                    Username
-                  </Label>
-                  <Input
-                    id="username"
-                    type="text"
-                    value={user?.username || ""}
-                    className="bg-slate-700 border-slate-600 text-white"
-                    disabled
-                  />
-                  <p className="text-sm text-slate-400 mt-1">Username cannot be changed</p>
-                </div>
-                <div>
-                  <Label htmlFor="display-name" className="text-white">
-                    Display Name
-                  </Label>
-                  <Input
-                    id="display-name"
-                    type="text"
-                    value={user?.display_name || ""}
-                    className="bg-slate-700 border-slate-600 text-white"
-                    disabled
-                  />
-                </div>
+              <CardContent>
+                <form onSubmit={handleProfileUpdate} className="space-y-4">
+                  <div>
+                    <Label htmlFor="username" className="text-white">
+                      Username
+                    </Label>
+                    <Input
+                      id="username"
+                      value={user?.username || ""}
+                      className="bg-slate-700 border-slate-600 text-white"
+                      disabled
+                    />
+                    <p className="text-slate-400 text-sm mt-1">Username cannot be changed</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="display_name" className="text-white">
+                      Display Name
+                    </Label>
+                    <Input
+                      id="display_name"
+                      value={profileData.display_name}
+                      onChange={(e) => setProfileData({ ...profileData, display_name: e.target.value })}
+                      className="bg-slate-700 border-slate-600 text-white"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+                    {isLoading ? "Updating..." : "Update Profile"}
+                  </Button>
+                </form>
               </CardContent>
             </Card>
 
-            {/* Change Password */}
+            {/* Password Settings */}
             <Card className="bg-slate-800 border-slate-700">
               <CardHeader>
                 <CardTitle className="text-white">Change Password</CardTitle>
-                <CardDescription className="text-slate-400">
-                  Update your password to keep your account secure
-                </CardDescription>
+                <CardDescription className="text-slate-400">Update your account password</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
@@ -178,6 +211,7 @@ export default function SettingsPage() {
                         onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                         className="bg-slate-700 border-slate-600 text-white pr-10"
                         required
+                        minLength={6}
                       />
                       <Button
                         type="button"
@@ -206,6 +240,7 @@ export default function SettingsPage() {
                         onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                         className="bg-slate-700 border-slate-600 text-white pr-10"
                         required
+                        minLength={6}
                       />
                       <Button
                         type="button"
@@ -222,31 +257,10 @@ export default function SettingsPage() {
                       </Button>
                     </div>
                   </div>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
-                    {isLoading ? "Updating..." : "Update Password"}
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+                    {isLoading ? "Changing..." : "Change Password"}
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
-
-            {/* Danger Zone */}
-            <Card className="bg-slate-800 border-red-700">
-              <CardHeader>
-                <CardTitle className="text-red-400">Danger Zone</CardTitle>
-                <CardDescription className="text-slate-400">Irreversible and destructive actions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to log out?")) {
-                      logout()
-                      router.push("/auth")
-                    }
-                  }}
-                >
-                  Log Out
-                </Button>
               </CardContent>
             </Card>
           </div>
