@@ -17,19 +17,18 @@ export async function POST(request: NextRequest) {
 
     const { new_password } = await request.json()
 
-    // Update password if new_password is provided
     if (new_password) {
       if (new_password.length < 6) {
         return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
       }
 
-      const passwordUpdated = await updateUserPassword(user.username, new_password)
-      if (!passwordUpdated) {
+      const success = await updateUserPassword(user.username, new_password)
+      if (!success) {
         return NextResponse.json({ error: "Failed to update password" }, { status: 500 })
       }
     }
 
-    return NextResponse.json({ message: "Profile updated successfully" })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Profile update error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

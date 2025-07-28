@@ -3,86 +3,63 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useToast } from "@/hooks/use-toast"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Eye, EyeOff } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
 
 export default function AuthPage() {
-  const { login, register } = useAuth()
-  const { toast } = useToast()
-  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const { login, register } = useAuth()
+  const router = useRouter()
 
-  // Login form state
-  const [loginData, setLoginData] = useState({
-    username: "",
-    password: "",
-  })
-
-  // Register form state
-  const [registerData, setRegisterData] = useState({
-    username: "",
-    password: "",
-    confirmPassword: "",
-  })
-
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("")
+
+    const formData = new FormData(e.currentTarget)
+    const username = formData.get("username") as string
+    const password = formData.get("password") as string
 
     try {
-      await login(loginData.username, loginData.password)
-      toast({
-        title: "Success",
-        description: "Logged in successfully!",
-      })
+      await login(username, password)
       router.push("/")
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Login failed",
-        variant: "destructive",
-      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    setIsLoading(true)
+    setError("")
 
-    if (registerData.password !== registerData.confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      })
+    const formData = new FormData(e.currentTarget)
+    const username = formData.get("username") as string
+    const password = formData.get("password") as string
+    const confirmPassword = formData.get("confirmPassword") as string
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match")
+      setIsLoading(false)
       return
     }
 
-    setIsLoading(true)
-
     try {
-      await register(registerData.username, registerData.password)
-      toast({
-        title: "Success",
-        description: "Account created successfully!",
-      })
+      await register(username, password)
       router.push("/")
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Registration failed",
-        variant: "destructive",
-      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed")
     } finally {
       setIsLoading(false)
     }
@@ -98,44 +75,47 @@ export default function AuthPage() {
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 bg-slate-700">
-              <TabsTrigger value="login" className="text-white data-[state=active]:bg-slate-600">
-                Sign In
+              <TabsTrigger
+                value="login"
+                className="text-slate-300 data-[state=active]:bg-slate-600 data-[state=active]:text-white"
+              >
+                Login
               </TabsTrigger>
-              <TabsTrigger value="register" className="text-white data-[state=active]:bg-slate-600">
-                Sign Up
+              <TabsTrigger
+                value="register"
+                className="text-slate-300 data-[state=active]:bg-slate-600 data-[state=active]:text-white"
+              >
+                Register
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-username" className="text-white">
+                  <Label htmlFor="login-username" className="text-slate-300">
                     Username
                   </Label>
                   <Input
                     id="login-username"
+                    name="username"
                     type="text"
-                    value={loginData.username}
-                    onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
+                    required
                     className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                     placeholder="Enter your username"
-                    required
                   />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="login-password" className="text-white">
+                  <Label htmlFor="login-password" className="text-slate-300">
                     Password
                   </Label>
                   <div className="relative">
                     <Input
                       id="login-password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
-                      value={loginData.password}
-                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                      required
                       className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 pr-10"
                       placeholder="Enter your password"
-                      required
                     />
                     <Button
                       type="button"
@@ -152,10 +132,9 @@ export default function AuthPage() {
                     </Button>
                   </div>
                 </div>
-
-                <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700" disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Sign In
+                {error && <p className="text-red-400 text-sm">{error}</p>}
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+                  {isLoading ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
             </TabsContent>
@@ -163,33 +142,30 @@ export default function AuthPage() {
             <TabsContent value="register">
               <form onSubmit={handleRegister} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="register-username" className="text-white">
+                  <Label htmlFor="register-username" className="text-slate-300">
                     Username
                   </Label>
                   <Input
                     id="register-username"
+                    name="username"
                     type="text"
-                    value={registerData.username}
-                    onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
+                    required
                     className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                     placeholder="Choose a username"
-                    required
                   />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="register-password" className="text-white">
+                  <Label htmlFor="register-password" className="text-slate-300">
                     Password
                   </Label>
                   <div className="relative">
                     <Input
                       id="register-password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
-                      value={registerData.password}
-                      onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                      required
                       className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 pr-10"
                       placeholder="Create a password"
-                      required
                     />
                     <Button
                       type="button"
@@ -206,20 +182,18 @@ export default function AuthPage() {
                     </Button>
                   </div>
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="confirm-password" className="text-white">
+                  <Label htmlFor="confirm-password" className="text-slate-300">
                     Confirm Password
                   </Label>
                   <div className="relative">
                     <Input
                       id="confirm-password"
+                      name="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
-                      value={registerData.confirmPassword}
-                      onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
+                      required
                       className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 pr-10"
                       placeholder="Confirm your password"
-                      required
                     />
                     <Button
                       type="button"
@@ -236,10 +210,9 @@ export default function AuthPage() {
                     </Button>
                   </div>
                 </div>
-
-                <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700" disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create Account
+                {error && <p className="text-red-400 text-sm">{error}</p>}
+                <Button type="submit" className="w-full bg-green-600 hover:bg-green-700" disabled={isLoading}>
+                  {isLoading ? "Creating account..." : "Create Account"}
                 </Button>
               </form>
             </TabsContent>

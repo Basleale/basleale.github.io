@@ -38,7 +38,7 @@ export function verifyToken(token: string): AuthUser | null {
   }
 }
 
-export async function getUserCredentials(username: string): Promise<{ username: string; password: string } | null> {
+export async function validateUserCredentials(username: string, password: string): Promise<boolean> {
   try {
     const response = await fetch(`https://blob.vercel-storage.com/users/${username}/credentials.txt`, {
       headers: {
@@ -47,7 +47,7 @@ export async function getUserCredentials(username: string): Promise<{ username: 
     })
 
     if (!response.ok) {
-      return null
+      return false
     }
 
     const credentialsText = await response.text()
@@ -55,14 +55,10 @@ export async function getUserCredentials(username: string): Promise<{ username: 
     const storedUsername = lines[0]?.replace("username:", "").trim()
     const storedPassword = lines[1]?.replace("password:", "").trim()
 
-    if (storedUsername && storedPassword) {
-      return { username: storedUsername, password: storedPassword }
-    }
-
-    return null
+    return storedUsername === username && storedPassword === password
   } catch (error) {
-    console.error("Error fetching user credentials:", error)
-    return null
+    console.error("Error validating credentials:", error)
+    return false
   }
 }
 

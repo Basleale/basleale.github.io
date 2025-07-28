@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getUserCredentials, generateToken } from "@/lib/auth"
+import { validateUserCredentials, generateToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,22 +9,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
     }
 
-    // Get stored credentials
-    const credentials = await getUserCredentials(username)
-    if (!credentials) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
-    }
-
-    // Simple direct comparison
-    if (credentials.username !== username || credentials.password !== password) {
+    // Simple validation - check if username and password match what's stored
+    const isValid = await validateUserCredentials(username, password)
+    if (!isValid) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
     // Create user object for token
     const authUser = {
       id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      username: credentials.username,
-      display_name: credentials.username,
+      username: username,
+      display_name: username,
       avatar_url: null,
     }
 
