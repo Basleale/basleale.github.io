@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Eneskench Summit",
-  description: "A creative media sharing platform",
+  description: "A media sharing platform for the community",
     generator: 'v0.dev'
 }
 

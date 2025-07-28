@@ -6,8 +6,6 @@ export interface User {
   username: string
   display_name: string
   avatar_url?: string
-  created_at: string
-  last_active: string
 }
 
 export interface AuthUser {
@@ -68,48 +66,6 @@ export async function getUserCredentials(username: string): Promise<{ username: 
   }
 }
 
-export async function getUserProfile(username: string): Promise<User | null> {
-  try {
-    const response = await fetch(`https://blob.vercel-storage.com/users/${username}/profile.txt`, {
-      headers: {
-        Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
-      },
-    })
-
-    if (!response.ok) {
-      // Create default profile if it doesn't exist
-      const defaultProfile: User = {
-        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        username,
-        display_name: username,
-        avatar_url: null,
-        created_at: new Date().toISOString(),
-        last_active: new Date().toISOString(),
-      }
-
-      await createUserProfile(username, defaultProfile)
-      return defaultProfile
-    }
-
-    const profileText = await response.text()
-    const lines = profileText.split("\n")
-
-    const profile: User = {
-      id: lines[0]?.replace("id:", "").trim() || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      username: lines[1]?.replace("username:", "").trim() || username,
-      display_name: lines[2]?.replace("display_name:", "").trim() || username,
-      avatar_url: lines[3]?.replace("avatar_url:", "").trim() || null,
-      created_at: lines[4]?.replace("created_at:", "").trim() || new Date().toISOString(),
-      last_active: lines[5]?.replace("last_active:", "").trim() || new Date().toISOString(),
-    }
-
-    return profile
-  } catch (error) {
-    console.error("Error fetching user profile:", error)
-    return null
-  }
-}
-
 export async function createUser(username: string, password: string): Promise<User> {
   const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
@@ -121,27 +77,13 @@ export async function createUser(username: string, password: string): Promise<Us
     token: process.env.BLOB_READ_WRITE_TOKEN,
   })
 
-  // Store profile information
-  const user: User = {
+  // Return user object for token generation
+  return {
     id: userId,
     username,
     display_name: username,
     avatar_url: null,
-    created_at: new Date().toISOString(),
-    last_active: new Date().toISOString(),
   }
-
-  await createUserProfile(username, user)
-  return user
-}
-
-export async function createUserProfile(username: string, user: User): Promise<void> {
-  const profileContent = `id:${user.id}\nusername:${user.username}\ndisplay_name:${user.display_name}\navatar_url:${user.avatar_url || ""}\ncreated_at:${user.created_at}\nlast_active:${user.last_active}`
-
-  await put(`users/${username}/profile.txt`, profileContent, {
-    access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-  })
 }
 
 export async function userExists(username: string): Promise<boolean> {
@@ -152,20 +94,6 @@ export async function userExists(username: string): Promise<boolean> {
     return true
   } catch {
     return false
-  }
-}
-
-export async function updateUserProfile(username: string, updates: Partial<User>): Promise<User | null> {
-  try {
-    const existingUser = await getUserProfile(username)
-    if (!existingUser) return null
-
-    const updatedUser = { ...existingUser, ...updates, last_active: new Date().toISOString() }
-    await createUserProfile(username, updatedUser)
-    return updatedUser
-  } catch (error) {
-    console.error("Error updating user profile:", error)
-    return null
   }
 }
 

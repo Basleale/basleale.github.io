@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+
+import { createContext, useContext, useEffect, useState } from "react"
 
 interface User {
   id: string
@@ -15,6 +16,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>
   register: (username: string, password: string) => Promise<void>
   logout: () => void
+  updateProfile: (updates: { display_name?: string; password?: string }) => Promise<void>
   loading: boolean
 }
 
@@ -94,7 +96,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, login, register, logout, loading }}>{children}</AuthContext.Provider>
+  const updateProfile = async (updates: { display_name?: string; password?: string }) => {
+    const token = localStorage.getItem("auth_token")
+    const response = await fetch("/api/auth/update-profile", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        display_name: updates.display_name,
+        new_password: updates.password,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || "Update failed")
+    }
+
+    // Update local user state if display_name changed
+    if (updates.display_name && user) {
+      setUser({ ...user, display_name: updates.display_name })
+    }
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, login, register, logout, updateProfile, loading }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken, updateUserProfile, updateUserPassword } from "@/lib/auth"
+import { verifyToken, updateUserPassword } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,15 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { display_name, new_password } = await request.json()
-
-    // Update profile if display_name is provided
-    if (display_name) {
-      const updatedUser = await updateUserProfile(user.username, { display_name })
-      if (!updatedUser) {
-        return NextResponse.json({ error: "Failed to update profile" }, { status: 500 })
-      }
-    }
+    const { new_password } = await request.json()
 
     // Update password if new_password is provided
     if (new_password) {

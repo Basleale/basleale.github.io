@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getUserCredentials, getUserProfile, generateToken, updateUserProfile } from "@/lib/auth"
+import { getUserCredentials, generateToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,25 +15,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Simple direct comparison - no hashing needed
+    // Simple direct comparison
     if (credentials.username !== username || credentials.password !== password) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Get user profile
-    const userProfile = await getUserProfile(username)
-    if (!userProfile) {
-      return NextResponse.json({ error: "User profile not found" }, { status: 404 })
-    }
-
-    // Update last active
-    await updateUserProfile(username, { last_active: new Date().toISOString() })
-
+    // Create user object for token
     const authUser = {
-      id: userProfile.id,
-      username: userProfile.username,
-      display_name: userProfile.display_name,
-      avatar_url: userProfile.avatar_url,
+      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      username: credentials.username,
+      display_name: credentials.username,
+      avatar_url: null,
     }
 
     const token = generateToken(authUser)

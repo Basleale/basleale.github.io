@@ -18,14 +18,32 @@ export default function SettingsPage() {
   const { toast } = useToast()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [displayName, setDisplayName] = useState(user?.display_name || "")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!newPassword) {
+      toast({
+        title: "Error",
+        description: "Please enter a new password",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Passwords do not match",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -37,8 +55,7 @@ export default function SettingsPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          display_name: displayName !== user?.display_name ? displayName : undefined,
-          new_password: newPassword || undefined,
+          new_password: newPassword,
         }),
       })
 
@@ -50,7 +67,7 @@ export default function SettingsPage() {
 
       toast({
         title: "Success",
-        description: "Profile updated successfully!",
+        description: "Password updated successfully!",
       })
 
       // Clear password fields
@@ -65,18 +82,6 @@ export default function SettingsPage() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const handlePasswordChange = () => {
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      })
-      return false
-    }
-    return true
   }
 
   return (
@@ -96,42 +101,28 @@ export default function SettingsPage() {
         <div className="max-w-2xl mx-auto p-6">
           <Card className="bg-slate-800 border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white">Profile Settings</CardTitle>
-              <CardDescription className="text-slate-400">Update your profile information and password</CardDescription>
+              <CardTitle className="text-white">Account Settings</CardTitle>
+              <CardDescription className="text-slate-400">Manage your account preferences</CardDescription>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleUpdateProfile} className="space-y-6">
+            <CardContent className="space-y-6">
+              {/* Account Info */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-white">Account Information</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-white">
-                    Username
-                  </Label>
+                  <Label className="text-white">Username</Label>
                   <Input
-                    id="username"
-                    type="text"
                     value={user?.username || ""}
                     disabled
                     className="bg-slate-700 border-slate-600 text-slate-400"
                   />
                   <p className="text-xs text-slate-500">Username cannot be changed</p>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="display-name" className="text-white">
-                    Display Name
-                  </Label>
-                  <Input
-                    id="display-name"
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-                    placeholder="Your display name"
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white">Change Password</h3>
-
+              {/* Password Change */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-white">Change Password</h3>
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="new-password" className="text-white">
                       New Password
@@ -189,28 +180,15 @@ export default function SettingsPage() {
                       </Button>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex space-x-4">
-                  <Button
-                    type="submit"
-                    className="bg-purple-600 hover:bg-purple-700"
-                    disabled={isLoading || (newPassword && !handlePasswordChange())}
-                  >
-                    {isLoading ? "Updating..." : "Update Profile"}
+                  <Button type="submit" className="bg-purple-600 hover:bg-purple-700" disabled={isLoading}>
+                    {isLoading ? "Updating..." : "Update Password"}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => router.back()}
-                    className="border-slate-600 text-white hover:bg-slate-700"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
+                </form>
+              </div>
 
-              <div className="mt-8 pt-6 border-t border-slate-700">
+              {/* Danger Zone */}
+              <div className="pt-6 border-t border-slate-700">
                 <h3 className="text-lg font-medium text-white mb-4">Danger Zone</h3>
                 <Button variant="destructive" onClick={logout} className="bg-red-600 hover:bg-red-700">
                   Sign Out
