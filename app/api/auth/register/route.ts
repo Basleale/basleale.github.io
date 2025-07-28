@@ -19,14 +19,21 @@ export async function POST(request: NextRequest) {
 
     const exists = await userExists(username)
     if (exists) {
-      return NextResponse.json({ error: "Username already exists" }, { status: 400 })
+      return NextResponse.json({ error: "Username already exists" }, { status: 409 })
     }
 
     const user = await createUser(username, password)
-    const token = generateToken({ id: user.id, username: user.username })
+    const authUser = {
+      id: user.id,
+      username: user.username,
+      display_name: user.display_name,
+      avatar_url: user.avatar_url,
+    }
+
+    const token = generateToken(authUser)
 
     return NextResponse.json({
-      user: { id: user.id, username: user.username },
+      user: authUser,
       token,
     })
   } catch (error) {

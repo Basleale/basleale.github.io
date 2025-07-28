@@ -3,256 +3,264 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
-import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Send, Mic, ImageIcon, Users } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, Send, Mic, ImageIcon, Users, MessageCircle } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { ProtectedRoute } from "@/components/protected-route"
 import { useRouter } from "next/navigation"
-import ProtectedRoute from "@/components/protected-route"
+import { useToast } from "@/hooks/use-toast"
 
 interface Message {
   id: string
   content: string
-  sender: string
-  senderId: string
-  timestamp: string
-  type: "text" | "voice" | "image"
+  sender_id: string
+  sender_username: string
+  created_at: string
+  type: "text" | "image" | "voice"
+  media_url?: string
 }
 
-interface ChatUser {
+interface ChatRoom {
   id: string
-  username: string
-  display_name: string
-  online: boolean
+  name: string
+  type: "public" | "private"
+  participants: string[]
+  last_message?: Message
 }
 
 export default function ChatPage() {
   const { user } = useAuth()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState("site-wide")
-  const [message, setMessage] = useState("")
+  const { toast } = useToast()
   const [messages, setMessages] = useState<Message[]>([])
-  const [users, setUsers] = useState<ChatUser[]>([])
-  const [selectedUser, setSelectedUser] = useState<string | null>(null)
+  const [newMessage, setNewMessage] = useState("")
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
+  const [activeRoom, setActiveRoom] = useState<string>("general")
+  const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+  useEffect(() => {
+    fetchChatRooms()
+    fetchMessages(activeRoom)
+  }, [activeRoom])
 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
 
-  // Mock data for now
-  useEffect(() => {
-    const mockUsers: ChatUser[] = [
-      { id: "1", username: "alice", display_name: "Alice", online: true },
-      { id: "2", username: "bob", display_name: "Bob", online: false },
-      { id: "3", username: "charlie", display_name: "Charlie", online: true },
-    ]
-    setUsers(mockUsers)
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
 
-    const mockMessages: Message[] = [
-      {
-        id: "1",
-        content: "Hey everyone! How's the project going?",
-        sender: "Alice",
-        senderId: "1",
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
-        type: "text",
-      },
-      {
-        id: "2",
-        content: "Going great! Just uploaded some new designs.",
-        sender: "Bob",
-        senderId: "2",
-        timestamp: new Date(Date.now() - 1800000).toISOString(),
-        type: "text",
-      },
-    ]
-    setMessages(mockMessages)
-  }, [])
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!message.trim()) return
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content: message,
-      sender: user?.display_name || user?.username || "You",
-      senderId: user?.id || "current",
-      timestamp: new Date().toISOString(),
-      type: "text",
+  const fetchChatRooms = async () => {
+    try {
+      const response = await fetch("/api/chat/rooms", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setChatRooms(data.rooms || [])
+      }
+    } catch (error) {
+      console.error("Error fetching chat rooms:", error)
     }
-
-    setMessages((prev) => [...prev, newMessage])
-    setMessage("")
-
-    // TODO: Send to API
   }
 
-  const handleVoiceMessage = () => {
-    // TODO: Implement voice message recording
-    console.log("Voice message recording...")
+  const fetchMessages = async (roomId: string) => {
+    try {
+      const response = await fetch(`/api/chat/messages?room=${roomId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setMessages(data.messages || [])
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error)
+    }
   }
 
-  const handleImageUpload = () => {
-    // TODO: Implement image upload
-    console.log("Image upload...")
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMessage.trim()) return
+
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/chat/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+        body: JSON.stringify({
+          content: newMessage,
+          room_id: activeRoom,
+          type: "text",
+        }),
+      })
+
+      if (response.ok) {
+        setNewMessage("")
+        fetchMessages(activeRoom) // Refresh messages
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to send message",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error sending message:", error)
+      toast({
+        title: "Error",
+        description: "Failed to send message",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-slate-900 text-white">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center mb-6">
-            <Button variant="ghost" onClick={() => router.back()} className="text-white hover:bg-slate-800">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <div className="mb-6">
+            <Button variant="ghost" onClick={() => router.back()} className="mb-4 flex items-center space-x-2">
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back</span>
             </Button>
-            <h1 className="text-2xl font-bold ml-4">Chat</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Chat</h1>
+            <p className="text-gray-600">Connect with the community</p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-200px)]">
-            {/* Chat Tabs */}
-            <div className="lg:col-span-3">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-                <TabsList className="grid w-full grid-cols-2 bg-slate-800">
-                  <TabsTrigger value="site-wide" className="text-white">
-                    <Users className="h-4 w-4 mr-2" />
-                    Site-wide Chat
-                  </TabsTrigger>
-                  <TabsTrigger value="private" className="text-white">
-                    Private Chats
-                  </TabsTrigger>
-                </TabsList>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[600px]">
+            {/* Chat Rooms Sidebar */}
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Users className="h-5 w-5" />
+                  <span>Rooms</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button
+                  variant={activeRoom === "general" ? "default" : "ghost"}
+                  className="w-full justify-start"
+                  onClick={() => setActiveRoom("general")}
+                >
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  General Chat
+                  <Badge variant="secondary" className="ml-auto">
+                    Public
+                  </Badge>
+                </Button>
+                <Button
+                  variant={activeRoom === "creative" ? "default" : "ghost"}
+                  className="w-full justify-start"
+                  onClick={() => setActiveRoom("creative")}
+                >
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  Creative Corner
+                  <Badge variant="secondary" className="ml-auto">
+                    Public
+                  </Badge>
+                </Button>
+                <Button
+                  variant={activeRoom === "tech" ? "default" : "ghost"}
+                  className="w-full justify-start"
+                  onClick={() => setActiveRoom("tech")}
+                >
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  Tech Talk
+                  <Badge variant="secondary" className="ml-auto">
+                    Public
+                  </Badge>
+                </Button>
+              </CardContent>
+            </Card>
 
-                <TabsContent value="site-wide" className="h-full mt-4">
-                  <Card className="bg-slate-800 border-slate-700 h-full flex flex-col">
-                    <CardHeader>
-                      <CardTitle className="text-white">Community Chat</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-1 flex flex-col">
-                      {/* Messages */}
-                      <div className="flex-1 overflow-y-auto mb-4 space-y-4">
-                        {messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`flex ${msg.senderId === user?.id ? "justify-end" : "justify-start"}`}
-                          >
-                            <div
-                              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                                msg.senderId === user?.id ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
-                              }`}
-                            >
-                              {msg.senderId !== user?.id && <p className="text-xs text-slate-300 mb-1">{msg.sender}</p>}
-                              <p>{msg.content}</p>
-                              <p className="text-xs text-slate-400 mt-1">
-                                {new Date(msg.timestamp).toLocaleTimeString()}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                        <div ref={messagesEndRef} />
-                      </div>
-
-                      {/* Message Input */}
-                      <form onSubmit={handleSendMessage} className="flex space-x-2">
-                        <Input
-                          value={message}
-                          onChange={(e) => setMessage(e.target.value)}
-                          placeholder="Type a message..."
-                          className="flex-1 bg-slate-700 border-slate-600 text-white"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={handleVoiceMessage}
-                          className="border-slate-600 text-slate-300 hover:bg-slate-700 bg-transparent"
-                        >
-                          <Mic className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={handleImageUpload}
-                          className="border-slate-600 text-slate-300 hover:bg-slate-700 bg-transparent"
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                        </Button>
-                        <Button type="submit" className="bg-purple-600 hover:bg-purple-700">
-                          <Send className="h-4 w-4" />
-                        </Button>
-                      </form>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="private" className="h-full mt-4">
-                  <Card className="bg-slate-800 border-slate-700 h-full">
-                    <CardHeader>
-                      <CardTitle className="text-white">Private Messages</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {selectedUser ? (
-                        <div className="text-center py-8">
-                          <p className="text-slate-400">Private chat with selected user</p>
-                          <p className="text-sm text-slate-500 mt-2">Feature coming soon!</p>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <p className="text-slate-400">Select a user to start chatting</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            {/* Users List */}
-            <div className="lg:col-span-1">
-              <Card className="bg-slate-800 border-slate-700 h-full">
-                <CardHeader>
-                  <CardTitle className="text-white">Online Users</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {users.map((chatUser) => (
+            {/* Chat Area */}
+            <Card className="lg:col-span-3 flex flex-col">
+              <CardHeader>
+                <CardTitle className="capitalize">
+                  {activeRoom === "general" && "General Chat"}
+                  {activeRoom === "creative" && "Creative Corner"}
+                  {activeRoom === "tech" && "Tech Talk"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col">
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto space-y-4 mb-4 max-h-96">
+                  {messages.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">
+                      <MessageCircle className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                      <p>No messages yet. Start the conversation!</p>
+                    </div>
+                  ) : (
+                    messages.map((message) => (
                       <div
-                        key={chatUser.id}
-                        className={`flex items-center space-x-3 p-2 rounded cursor-pointer hover:bg-slate-700 ${
-                          selectedUser === chatUser.id ? "bg-slate-700" : ""
+                        key={message.id}
+                        className={`flex items-start space-x-3 ${
+                          message.sender_id === user?.id ? "flex-row-reverse space-x-reverse" : ""
                         }`}
-                        onClick={() => setSelectedUser(chatUser.id)}
                       >
-                        <div className="relative">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-purple-600">
-                              {chatUser.display_name.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          {chatUser.online && (
-                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-800"></div>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-white text-sm font-medium">{chatUser.display_name}</p>
-                          <p className="text-slate-400 text-xs">@{chatUser.username}</p>
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>{message.sender_username.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div
+                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                            message.sender_id === user?.id ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-900"
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className="text-xs font-medium">
+                              {message.sender_id === user?.id ? "You" : message.sender_username}
+                            </span>
+                            <span className="text-xs opacity-70">{formatTime(message.created_at)}</span>
+                          </div>
+                          <p className="text-sm">{message.content}</p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                    ))
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Message Input */}
+                <form onSubmit={sendMessage} className="flex items-center space-x-2">
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    className="flex-1"
+                    disabled={isLoading}
+                  />
+                  <Button type="button" variant="ghost" size="sm">
+                    <ImageIcon className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm">
+                    <Mic className="h-4 w-4" />
+                  </Button>
+                  <Button type="submit" disabled={isLoading || !newMessage.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

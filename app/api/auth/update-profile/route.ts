@@ -1,54 +1,68 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken, updateUser, hashPassword, generateToken, userExists } from "@/lib/auth"
+import { verifyToken, getUserByUsername, updateUser, userExists, hashPassword, generateToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization")
-    const token = authHeader?.replace("Bearer ", "")
-
-    if (!token) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Authorization token required" }, { status: 401 })
     }
 
-    const currentUser = verifyToken(token)
-    if (!currentUser) {
+    const token = authHeader.substring(7)
+    const authUser = verifyToken(token)
+    if (!authUser) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { username, password } = await request.json()
+    const { username: newUsername, password: newPassword } = await request.json()
+
+    const currentUser = await getUserByUsername(authUser.username)
+    if (!currentUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
     const updates: any = {}
 
-    if (password) {
-      updates.password_hash = await hashPassword(password)
-    }
-
-    if (username && username !== currentUser.username) {
-      // Check if new username already exists
-      const exists = await userExists(username)
-      if (exists) {
-        return NextResponse.json({ error: "Username already exists" }, { status: 400 })
+    // Handle username change
+    if (newUsername && newUsername !== authUser.username) {
+      if (newUsername.length < 3) {
+        return NextResponse.json({ error: "Username must be at least 3 characters long" }, { status: 400 })
       }
-      updates.username = username
-      updates.display_name = username
+
+      const usernameExists = await userExists(newUsername)
+      if (usernameExists) {
+        return NextResponse.json({ error: "Username already exists" }, { status: 409 })
+      }
+
+      updates.username = newUsername
+      updates.display_name = newUsername
     }
 
-    const updatedUser = await updateUser(currentUser.username, updates)
+    // Handle password change
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
+      }
+
+      updates.password_hash = await hashPassword(newPassword)
+    }
+
+    const updatedUser = await updateUser(authUser.username, updates)
     if (!updatedUser) {
-      return NextResponse.json({ error: "Failed to update profile" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
     }
 
-    const authUser = {
+    const newAuthUser = {
       id: updatedUser.id,
       username: updatedUser.username,
       display_name: updatedUser.display_name,
       avatar_url: updatedUser.avatar_url,
     }
 
-    // Generate new token if username changed
-    const newToken = username && username !== currentUser.username ? generateToken(authUser) : undefined
+    const newToken = generateToken(newAuthUser)
 
     return NextResponse.json({
-      user: authUser,
+      user: newAuthUser,
       token: newToken,
     })
   } catch (error) {

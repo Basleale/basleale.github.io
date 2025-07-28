@@ -14,34 +14,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    // Mock notifications for now - in a real app, you'd fetch from your database
-    const notifications = [
+    // Mock chat rooms - in a real app, you'd fetch from your database
+    const rooms = [
       {
-        id: "1",
-        type: "upload",
-        message: "New media uploaded by @creativepro",
-        created_at: new Date().toISOString(),
-        read: false,
+        id: "general",
+        name: "General Chat",
+        type: "public",
+        participants: [],
       },
       {
-        id: "2",
-        type: "like",
-        message: "Someone liked your photo!",
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        read: false,
+        id: "creative",
+        name: "Creative Corner",
+        type: "public",
+        participants: [],
       },
       {
-        id: "3",
-        type: "comment",
-        message: "New comment on your video",
-        created_at: new Date(Date.now() - 7200000).toISOString(),
-        read: true,
+        id: "tech",
+        name: "Tech Talk",
+        type: "public",
+        participants: [],
       },
     ]
 
-    return NextResponse.json({ notifications })
+    return NextResponse.json({ rooms })
   } catch (error) {
-    console.error("Notifications error:", error)
+    console.error("Chat rooms error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
