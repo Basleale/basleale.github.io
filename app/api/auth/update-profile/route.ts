@@ -1,24 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken, updateUserPassword } from "@/lib/auth"
+import { updateUserPassword, verifyToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "No token provided" }, { status: 401 })
+    const { token, newPassword } = await request.json()
+
+    if (!token || !newPassword) {
+      return NextResponse.json({ error: "Token and new password are required" }, { status: 400 })
     }
 
-    const token = authHeader.substring(7)
     const user = verifyToken(token)
-
     if (!user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
-    const { newPassword } = await request.json()
-
-    if (!newPassword || newPassword.length < 6) {
-      return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 })
     }
 
     const success = await updateUserPassword(user.username, newPassword)

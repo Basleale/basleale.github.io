@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,18 +8,47 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Bell, MessageCircle, Upload, Settings, LogOut, Heart, MessageSquare, Share2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { ProtectedRoute } from "@/components/protected-route"
 import { useRouter } from "next/navigation"
-import ProtectedRoute from "@/components/protected-route"
+
+interface MediaItem {
+  id: string
+  title: string
+  description: string
+  thumbnail: string
+  author: string
+  likes: number
+  comments: number
+  timestamp: string
+}
 
 export default function HomePage() {
   const { user, logout } = useAuth()
   const router = useRouter()
-  const [notifications, setNotifications] = useState([])
-  const [mediaItems, setMediaItems] = useState([])
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [notifications, setNotifications] = useState<string[]>([])
+
+  useEffect(() => {
+    // Load media items - for now showing empty state
+    setMediaItems([])
+    setNotifications([])
+  }, [])
 
   const handleLogout = () => {
     logout()
     router.push("/auth")
+  }
+
+  const handleSettings = () => {
+    router.push("/settings")
+  }
+
+  const handleChat = () => {
+    router.push("/chat")
+  }
+
+  const handleUpload = () => {
+    router.push("/upload")
   }
 
   return (
@@ -33,79 +62,69 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Upload Button */}
+              <Button onClick={handleUpload} className="bg-purple-600 hover:bg-purple-700">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload
+              </Button>
+
+              {/* Chat Button */}
+              <Button
+                onClick={handleChat}
+                variant="outline"
+                className="border-slate-600 text-slate-300 hover:bg-slate-700 bg-transparent"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </Button>
+
               {/* Notifications */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white relative">
-                    <Bell className="h-5 w-5" />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700 relative bg-transparent"
+                  >
+                    <Bell className="w-4 h-4" />
                     {notifications.length > 0 && (
-                      <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs bg-red-500">
+                      <Badge className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-1 py-0 min-w-[1.25rem] h-5">
                         {notifications.length}
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80 bg-slate-800 border-slate-700">
-                  <div className="p-4">
-                    <h3 className="font-semibold text-white mb-2">Notifications</h3>
-                    {notifications.length === 0 ? (
-                      <p className="text-slate-400 text-sm">No notifications yet</p>
-                    ) : (
-                      notifications.map((notification, index) => (
-                        <div key={index} className="py-2 border-b border-slate-700 last:border-0">
-                          <p className="text-sm text-slate-300">{notification}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700 text-white">
+                  {notifications.length === 0 ? (
+                    <DropdownMenuItem className="text-slate-400">No notifications</DropdownMenuItem>
+                  ) : (
+                    notifications.map((notification, index) => (
+                      <DropdownMenuItem key={index} className="hover:bg-slate-700">
+                        {notification}
+                      </DropdownMenuItem>
+                    ))
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Chat */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-slate-300 hover:text-white"
-                onClick={() => router.push("/chat")}
-              >
-                <MessageCircle className="h-5 w-5" />
-              </Button>
-
-              {/* Upload */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-slate-300 hover:text-white"
-                onClick={() => router.push("/upload")}
-              >
-                <Upload className="h-5 w-5" />
-              </Button>
-
-              {/* Profile */}
+              {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user?.avatar_url || ""} alt={user?.username || ""} />
-                      <AvatarFallback className="bg-slate-700 text-white">
-                        {user?.username?.charAt(0).toUpperCase() || "U"}
+                      <AvatarImage src={user?.avatar_url || ""} alt={user?.display_name || ""} />
+                      <AvatarFallback className="bg-purple-600 text-white">
+                        {user?.display_name?.charAt(0).toUpperCase() || "U"}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
-                  <DropdownMenuItem
-                    className="text-slate-300 hover:text-white hover:bg-slate-700"
-                    onClick={() => router.push("/settings")}
-                  >
-                    <Settings className="mr-2 h-4 w-4" />
+                <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700 text-white">
+                  <DropdownMenuItem onClick={handleSettings} className="hover:bg-slate-700">
+                    <Settings className="w-4 h-4 mr-2" />
                     Settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-slate-300 hover:text-white hover:bg-slate-700"
-                    onClick={handleLogout}
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
+                  <DropdownMenuItem onClick={handleLogout} className="hover:bg-slate-700">
+                    <LogOut className="w-4 h-4 mr-2" />
                     Logout
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -116,56 +135,53 @@ export default function HomePage() {
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mediaItems.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <p className="text-slate-400 text-lg">No interactions yet</p>
-                <p className="text-slate-500 text-sm mt-2">Upload some media to get started!</p>
-                <Button className="mt-4 bg-blue-600 hover:bg-blue-700" onClick={() => router.push("/upload")}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload Media
-                </Button>
-              </div>
-            ) : (
-              mediaItems.map((item, index) => (
-                <Card key={index} className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-slate-700 text-white">
-                          {item.username?.charAt(0).toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <CardTitle className="text-white text-sm">{item.username}</CardTitle>
-                        <CardDescription className="text-slate-400 text-xs">{item.timestamp}</CardDescription>
-                      </div>
-                    </div>
+          {mediaItems.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="text-slate-400 text-lg mb-4">No interactions yet</div>
+              <p className="text-slate-500 mb-8">Be the first to share something amazing!</p>
+              <Button onClick={handleUpload} className="bg-purple-600 hover:bg-purple-700">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Media
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {mediaItems.map((item) => (
+                <Card key={item.id} className="bg-slate-800 border-slate-700">
+                  <CardHeader className="p-0">
+                    <img
+                      src={item.thumbnail || "/placeholder.svg"}
+                      alt={item.title}
+                      className="w-full h-48 object-cover rounded-t-lg"
+                    />
                   </CardHeader>
-                  <CardContent>
-                    <div className="aspect-square bg-slate-700 rounded-lg mb-4 flex items-center justify-center">
-                      <p className="text-slate-400">Media Preview</p>
+                  <CardContent className="p-4">
+                    <CardTitle className="text-white text-lg mb-2">{item.title}</CardTitle>
+                    <CardDescription className="text-slate-400 mb-3">{item.description}</CardDescription>
+                    <div className="flex items-center justify-between text-sm text-slate-500">
+                      <span>by {item.author}</span>
+                      <span>{item.timestamp}</span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center space-x-4">
                         <Button variant="ghost" size="sm" className="text-slate-400 hover:text-red-400">
-                          <Heart className="h-4 w-4 mr-1" />
-                          {item.likes || 0}
+                          <Heart className="w-4 h-4 mr-1" />
+                          {item.likes}
                         </Button>
                         <Button variant="ghost" size="sm" className="text-slate-400 hover:text-blue-400">
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          {item.comments || 0}
+                          <MessageSquare className="w-4 h-4 mr-1" />
+                          {item.comments}
                         </Button>
                       </div>
                       <Button variant="ghost" size="sm" className="text-slate-400 hover:text-green-400">
-                        <Share2 className="h-4 w-4" />
+                        <Share2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </main>
       </div>
     </ProtectedRoute>

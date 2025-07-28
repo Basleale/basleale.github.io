@@ -7,25 +7,25 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff, ArrowLeft } from "lucide-react"
+import { ArrowLeft, Eye, EyeOff } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { ProtectedRoute } from "@/components/protected-route"
 import { useRouter } from "next/navigation"
-import ProtectedRoute from "@/components/protected-route"
 
 export default function SettingsPage() {
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState("")
-  const [error, setError] = useState("")
-  const { user, token } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
   const handlePasswordChange = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
-    setMessage("")
+    setSuccess("")
 
     const formData = new FormData(e.currentTarget)
     const newPassword = formData.get("newPassword") as string
@@ -38,19 +38,17 @@ export default function SettingsPage() {
     }
 
     try {
+      const token = localStorage.getItem("auth_token")
       const response = await fetch("/api/auth/update-profile", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ newPassword }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, newPassword }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        setMessage("Password updated successfully!")
+        setSuccess("Password updated successfully!")
         // Clear form
         ;(e.target as HTMLFormElement).reset()
       } else {
@@ -68,9 +66,14 @@ export default function SettingsPage() {
       <div className="min-h-screen bg-slate-900">
         {/* Header */}
         <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
-          <div className="max-w-7xl mx-auto flex items-center space-x-4">
-            <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white" onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
+          <div className="max-w-7xl mx-auto flex items-center">
+            <Button
+              onClick={() => router.back()}
+              variant="ghost"
+              size="sm"
+              className="text-slate-300 hover:text-white mr-4"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
             <h1 className="text-2xl font-bold text-white">Settings</h1>
@@ -92,7 +95,7 @@ export default function SettingsPage() {
                   <Input
                     value={user?.username || ""}
                     disabled
-                    className="bg-slate-700 border-slate-600 text-slate-400"
+                    className="bg-slate-700 border-slate-600 text-slate-400 mt-1"
                   />
                 </div>
                 <div>
@@ -100,7 +103,7 @@ export default function SettingsPage() {
                   <Input
                     value={user?.display_name || ""}
                     disabled
-                    className="bg-slate-700 border-slate-600 text-slate-400"
+                    className="bg-slate-700 border-slate-600 text-slate-400 mt-1"
                   />
                 </div>
               </CardContent>
@@ -122,7 +125,7 @@ export default function SettingsPage() {
                       <Input
                         id="newPassword"
                         name="newPassword"
-                        type={showNewPassword ? "text" : "password"}
+                        type={showPassword ? "text" : "password"}
                         required
                         className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 pr-10"
                         placeholder="Enter new password"
@@ -132,9 +135,9 @@ export default function SettingsPage() {
                         variant="ghost"
                         size="sm"
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-slate-400 hover:text-slate-300"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
@@ -146,7 +149,7 @@ export default function SettingsPage() {
                       <Input
                         id="confirmPassword"
                         name="confirmPassword"
-                        type={showCurrentPassword ? "text" : "password"}
+                        type={showConfirmPassword ? "text" : "password"}
                         required
                         className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 pr-10"
                         placeholder="Confirm new password"
@@ -156,19 +159,15 @@ export default function SettingsPage() {
                         variant="ghost"
                         size="sm"
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-slate-400 hover:text-slate-300"
-                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       >
-                        {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
                   {error && <p className="text-red-400 text-sm">{error}</p>}
-                  {message && <p className="text-green-400 text-sm">{message}</p>}
-                  <Button
-                    type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                    disabled={isLoading}
-                  >
+                  {success && <p className="text-green-400 text-sm">{success}</p>}
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
                     {isLoading ? "Updating..." : "Update Password"}
                   </Button>
                 </form>

@@ -5,70 +5,113 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ArrowLeft, Send, Mic, ImageIcon } from "lucide-react"
+import { ArrowLeft, Send, Mic, ImageIcon, Users } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { ProtectedRoute } from "@/components/protected-route"
 import { useRouter } from "next/navigation"
-import ProtectedRoute from "@/components/protected-route"
 
 interface Message {
   id: string
-  username: string
+  user: string
   content: string
   timestamp: string
-  room: string
+  type: "text" | "image" | "voice"
+}
+
+interface ChatRoom {
+  id: string
+  name: string
+  description: string
+  memberCount: number
 }
 
 export default function ChatPage() {
+  const { user } = useAuth()
+  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [activeRoom, setActiveRoom] = useState("general")
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { user } = useAuth()
-  const router = useRouter()
 
-  const rooms = [
-    { id: "general", name: "General", description: "Main chat room" },
-    { id: "media", name: "Media", description: "Discuss uploads" },
-    { id: "random", name: "Random", description: "Off-topic chat" },
+  const chatRooms: ChatRoom[] = [
+    { id: "general", name: "General", description: "General discussion", memberCount: 42 },
+    { id: "media", name: "Media Share", description: "Share your latest creations", memberCount: 28 },
+    { id: "feedback", name: "Feedback", description: "Get feedback on your work", memberCount: 15 },
+    { id: "random", name: "Random", description: "Off-topic conversations", memberCount: 33 },
   ]
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+  useEffect(() => {
+    // Load messages for active room
+    setMessages([
+      {
+        id: "1",
+        user: "System",
+        content: `Welcome to #${chatRooms.find((r) => r.id === activeRoom)?.name}!`,
+        timestamp: new Date().toLocaleTimeString(),
+        type: "text",
+      },
+    ])
+  }, [activeRoom])
 
   useEffect(() => {
-    scrollToBottom()
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || !user) return
+    if (!newMessage.trim()) return
 
     const message: Message = {
       id: Date.now().toString(),
-      username: user.username,
-      content: newMessage.trim(),
+      user: user?.display_name || "Anonymous",
+      content: newMessage,
       timestamp: new Date().toLocaleTimeString(),
-      room: activeRoom,
+      type: "text",
     }
 
     setMessages((prev) => [...prev, message])
     setNewMessage("")
   }
 
-  const filteredMessages = messages.filter((msg) => msg.room === activeRoom)
+  const handleVoiceMessage = () => {
+    // Placeholder for voice message functionality
+    const message: Message = {
+      id: Date.now().toString(),
+      user: user?.display_name || "Anonymous",
+      content: "🎤 Voice message",
+      timestamp: new Date().toLocaleTimeString(),
+      type: "voice",
+    }
+    setMessages((prev) => [...prev, message])
+  }
+
+  const handleImageShare = () => {
+    // Placeholder for image sharing functionality
+    const message: Message = {
+      id: Date.now().toString(),
+      user: user?.display_name || "Anonymous",
+      content: "📷 Shared an image",
+      timestamp: new Date().toLocaleTimeString(),
+      type: "image",
+    }
+    setMessages((prev) => [...prev, message])
+  }
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-900">
         {/* Header */}
         <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
-          <div className="max-w-7xl mx-auto flex items-center space-x-4">
-            <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white" onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
+          <div className="max-w-7xl mx-auto flex items-center">
+            <Button
+              onClick={() => router.back()}
+              variant="ghost"
+              size="sm"
+              className="text-slate-300 hover:text-white mr-4"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
             <h1 className="text-2xl font-bold text-white">Chat</h1>
@@ -76,73 +119,101 @@ export default function ChatPage() {
         </header>
 
         {/* Main Content */}
-        <main className="max-w-6xl mx-auto px-4 py-8">
-          <Card className="bg-slate-800 border-slate-700 h-[600px] flex flex-col">
-            <CardHeader>
-              <Tabs value={activeRoom} onValueChange={setActiveRoom}>
-                <TabsList className="grid w-full grid-cols-3 bg-slate-700">
-                  {rooms.map((room) => (
-                    <TabsTrigger
+        <main className="max-w-7xl mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-12rem)]">
+            {/* Room List */}
+            <Card className="bg-slate-800 border-slate-700 lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Users className="w-5 h-5 mr-2" />
+                  Rooms
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="space-y-1">
+                  {chatRooms.map((room) => (
+                    <Button
                       key={room.id}
-                      value={room.id}
-                      className="text-slate-300 data-[state=active]:bg-slate-600 data-[state=active]:text-white"
+                      onClick={() => setActiveRoom(room.id)}
+                      variant={activeRoom === room.id ? "secondary" : "ghost"}
+                      className={`w-full justify-start text-left p-3 h-auto ${
+                        activeRoom === room.id
+                          ? "bg-slate-700 text-white"
+                          : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                      }`}
                     >
-                      {room.name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            </CardHeader>
-
-            <CardContent className="flex-1 flex flex-col">
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-                {filteredMessages.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-slate-400">No messages yet in this room</p>
-                    <p className="text-slate-500 text-sm">Be the first to start the conversation!</p>
-                  </div>
-                ) : (
-                  filteredMessages.map((message) => (
-                    <div key={message.id} className="flex items-start space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-slate-700 text-white text-sm">
-                          {message.username.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-white font-medium text-sm">{message.username}</span>
-                          <span className="text-slate-400 text-xs">{message.timestamp}</span>
-                        </div>
-                        <p className="text-slate-300 text-sm mt-1">{message.content}</p>
+                      <div>
+                        <div className="font-medium">#{room.name}</div>
+                        <div className="text-xs text-slate-400">{room.memberCount} members</div>
                       </div>
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Chat Area */}
+            <Card className="bg-slate-800 border-slate-700 lg:col-span-3 flex flex-col">
+              <CardHeader className="border-b border-slate-700">
+                <CardTitle className="text-white">#{chatRooms.find((r) => r.id === activeRoom)?.name}</CardTitle>
+                <p className="text-slate-400 text-sm">{chatRooms.find((r) => r.id === activeRoom)?.description}</p>
+              </CardHeader>
+
+              {/* Messages */}
+              <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.map((message) => (
+                  <div key={message.id} className="flex items-start space-x-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-purple-600 text-white text-xs">
+                        {message.user.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-white font-medium text-sm">{message.user}</span>
+                        <span className="text-slate-400 text-xs">{message.timestamp}</span>
+                      </div>
+                      <div className="text-slate-300 text-sm">{message.content}</div>
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
                 <div ref={messagesEndRef} />
-              </div>
+              </CardContent>
 
               {/* Message Input */}
-              <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-                <Button type="button" variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-                  <ImageIcon className="h-4 w-4" />
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-                  <Mic className="h-4 w-4" />
-                </Button>
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder={`Message #${rooms.find((r) => r.id === activeRoom)?.name.toLowerCase()}`}
-                  className="flex-1 bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
-                />
-                <Button type="submit" size="sm" className="bg-blue-600 hover:bg-blue-700" disabled={!newMessage.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+              <div className="border-t border-slate-700 p-4">
+                <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+                  <Button
+                    type="button"
+                    onClick={handleVoiceMessage}
+                    variant="outline"
+                    size="icon"
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700 bg-transparent"
+                  >
+                    <Mic className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleImageShare}
+                    variant="outline"
+                    size="icon"
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700 bg-transparent"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                  </Button>
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder={`Message #${chatRooms.find((r) => r.id === activeRoom)?.name}`}
+                    className="flex-1 bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                  />
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </form>
+              </div>
+            </Card>
+          </div>
         </main>
       </div>
     </ProtectedRoute>

@@ -1,36 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "No token provided" }, { status: 401 })
-    }
-
-    const token = authHeader.substring(7)
-    const user = verifyToken(token)
-
-    if (!user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
-    // Mock notifications for now
+    // Placeholder for notifications - in a real app, this would fetch from database
     const notifications = [
-      {
-        id: "1",
-        title: "New Upload",
-        message: "Someone uploaded new content to the platform",
-        timestamp: new Date().toISOString(),
-        read: false,
-      },
-      {
-        id: "2",
-        title: "Like Received",
-        message: "Your content received a new like",
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
-        read: false,
-      },
+      "New media uploaded by user123",
+      "Your post received 5 likes",
+      "Someone commented on your video",
     ]
 
     return NextResponse.json({ notifications })

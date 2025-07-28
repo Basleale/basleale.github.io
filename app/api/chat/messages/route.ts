@@ -1,78 +1,42 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "No token provided" }, { status: 401 })
-    }
-
-    const token = authHeader.substring(7)
-    const user = verifyToken(token)
-
-    if (!user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
-    const roomId = searchParams.get("room") || "general"
+    const room = searchParams.get("room") || "general"
 
-    // Mock messages for now
+    // Placeholder for chat messages - in a real app, this would fetch from database
     const messages = [
       {
         id: "1",
-        content: "Welcome to the chat room!",
-        author: "System",
-        timestamp: new Date(Date.now() - 7200000).toISOString(),
-        type: "text",
-      },
-      {
-        id: "2",
-        content: "Hello everyone! Great to be here.",
-        author: "User123",
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        user: "System",
+        content: `Welcome to #${room}!`,
+        timestamp: new Date().toISOString(),
         type: "text",
       },
     ]
 
     return NextResponse.json({ messages })
   } catch (error) {
-    console.error("Messages error:", error)
+    console.error("Chat messages error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "No token provided" }, { status: 401 })
-    }
+    const { room, message, user } = await request.json()
 
-    const token = authHeader.substring(7)
-    const user = verifyToken(token)
-
-    if (!user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
-    const { content, roomId, type } = await request.json()
-
-    if (!content || !roomId) {
-      return NextResponse.json({ error: "Content and room ID are required" }, { status: 400 })
-    }
-
-    // Mock message creation
-    const message = {
+    // Placeholder for sending messages - in a real app, this would save to database
+    const newMessage = {
       id: Date.now().toString(),
-      content,
-      author: user.username,
+      user,
+      content: message,
       timestamp: new Date().toISOString(),
-      type: type || "text",
+      type: "text",
     }
 
-    return NextResponse.json({ message })
+    return NextResponse.json({ message: newMessage })
   } catch (error) {
     console.error("Send message error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
