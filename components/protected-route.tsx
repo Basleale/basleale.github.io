@@ -1,8 +1,11 @@
 "use client"
 
+import type React from "react"
+
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
+import { Loader2 } from "lucide-react"
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -17,7 +20,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-4" />
+          <p className="text-slate-400">Loading...</p>
+        </div>
       </div>
     )
   }

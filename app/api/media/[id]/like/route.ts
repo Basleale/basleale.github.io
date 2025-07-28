@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@vercel/postgres"
-import { AuthService } from "@/lib/auth"
+import { verifyToken } from "@/lib/auth"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: "Authentication required" }, { status: 401 })
     }
 
-    const user = await AuthService.verifyToken(token)
+    const user = await verifyToken(token)
     if (!user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
@@ -28,12 +28,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       await sql`
         DELETE FROM likes WHERE user_id = ${user.id} AND media_id = ${mediaId}
       `
+      console.log(`User ${user.username} unliked media ${mediaId}`)
       return NextResponse.json({ liked: false, message: "Media unliked" })
     } else {
       // Like - add the like
       await sql`
         INSERT INTO likes (user_id, media_id) VALUES (${user.id}, ${mediaId})
       `
+      console.log(`User ${user.username} liked media ${mediaId}`)
       return NextResponse.json({ liked: true, message: "Media liked" })
     }
   } catch (error) {

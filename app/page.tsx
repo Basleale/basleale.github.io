@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -7,8 +9,22 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Search, Menu, Bell, Users, BarChart3, Clock, Settings, MessageCircle, Heart, Upload, LogOut } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  Search,
+  Menu,
+  Bell,
+  Users,
+  BarChart3,
+  Clock,
+  Settings,
+  MessageCircle,
+  Upload,
+  User,
+  LogOut,
+} from "lucide-react"
 import ProtectedRoute from "@/components/protected-route"
+import { useRouter } from "next/navigation"
 
 interface MediaItem {
   id: string
@@ -23,81 +39,86 @@ interface MediaItem {
   createdAt: string
 }
 
+interface Notification {
+  id: string
+  type: "upload" | "like" | "comment"
+  message: string
+  user: string
+  timestamp: string
+  read: boolean
+}
+
 export default function HomePage() {
   const { user, logout } = useAuth()
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [showNotifications, setShowNotifications] = useState(false)
 
-  // Mock data for now - replace with actual API calls
+  // Load media items and notifications
   useEffect(() => {
-    const mockData: MediaItem[] = [
-      {
-        id: "1",
-        title: "Image Tagging AI",
-        description: "with oral suggestions",
-        imageUrl: "/placeholder.svg?height=300&width=400&text=Portrait+1",
-        uploader: "john_doe",
-        uploaderId: "user1",
-        likes: 24,
-        comments: 8,
-        isLiked: false,
-        createdAt: "2024-01-15T10:30:00Z"
-      },
-      {
-        id: "2",
-        title: "Usth Uploads",
-        description: "ANlbties",
-        imageUrl: "/placeholder.svg?height=300&width=400&text=Portrait+2",
-        uploader: "jane_smith",
-        uploaderId: "user2",
-        likes: 18,
-        comments: 5,
-        isLiked: true,
-        createdAt: "2024-01-14T15:45:00Z"
-      },
-      {
-        id: "3",
-        title: "Dynamic Sploe of",
-        description: "4K Video",
-        imageUrl: "/placeholder.svg?height=300&width=400&text=Landscape+1",
-        uploader: "alex_wilson",
-        uploaderId: "user3",
-        likes: 32,
-        comments: 12,
-        isLiked: false,
-        createdAt: "2024-01-13T09:20:00Z"
-      },
-      {
-        id: "4",
-        title: "Buttery Smooth",
-        description: "4K Video",
-        imageUrl: "/placeholder.svg?height=300&width=400&text=Portrait+3",
-        uploader: "sarah_jones",
-        uploaderId: "user4",
-        likes: 45,
-        comments: 20,
-        isLiked: true,
-        createdAt: "2024-01-12T14:10:00Z"
+    const loadData = async () => {
+      try {
+        // Load media items from API
+        const mediaResponse = await fetch("/api/media", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+        })
+
+        if (mediaResponse.ok) {
+          const mediaData = await mediaResponse.json()
+          setMediaItems(mediaData.media || [])
+        }
+
+        // Load notifications
+        const notificationsResponse = await fetch("/api/notifications", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+        })
+
+        if (notificationsResponse.ok) {
+          const notificationsData = await notificationsResponse.json()
+          setNotifications(notificationsData.notifications || [])
+        }
+      } catch (error) {
+        console.error("Error loading data:", error)
+      } finally {
+        setLoading(false)
       }
-    ]
-    
-    setTimeout(() => {
-      setMediaItems(mockData)
-      setLoading(false)
-    }, 1000)
+    }
+
+    loadData()
   }, [])
 
   const handleLike = async (mediaId: string) => {
-    setMediaItems(prev => prev.map(item => 
-      item.id === mediaId 
-        ? { 
-            ...item, 
-            isLiked: !item.isLiked,
-            likes: item.isLiked ? item.likes - 1 : item.likes + 1
-          }
-        : item
-    ))
+    try {
+      const response = await fetch(`/api/media/${mediaId}/like`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+      })
+
+      if (response.ok) {
+        // Refresh media items
+        const mediaResponse = await fetch("/api/media", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+        })
+
+        if (mediaResponse.ok) {
+          const mediaData = await mediaResponse.json()
+          setMediaItems(mediaData.media || [])
+        }
+      }
+    } catch (error) {
+      console.error("Error liking media:", error)
+    }
   }
 
   const handleSearch = (e: React.FormEvent) => {
@@ -105,6 +126,8 @@ export default function HomePage() {
     // Implement search functionality
     console.log("Searching for:", searchQuery)
   }
+
+  const unreadNotifications = notifications.filter((n) => !n.read).length
 
   return (
     <ProtectedRoute>
@@ -123,29 +146,71 @@ export default function HomePage() {
                 <h1 className="text-xl font-bold">Eneskench Summit</h1>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <span className="text-slate-300">Albbuch</span>
-              <div className="relative">
-                <Bell className="h-5 w-5 text-slate-300" />
-                <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-xs flex items-center justify-center p-0">
-                  1
-                </Badge>
-              </div>
-              <Avatar className="h-8 w-8">
-                <AvatarImage src="/placeholder-user.jpg" />
-                <AvatarFallback className="bg-purple-600">
-                  {user?.username?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={logout}
-                className="text-slate-300 hover:bg-slate-700"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
+
+              {/* Notifications */}
+              <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="relative text-slate-300 hover:bg-slate-700">
+                    <Bell className="h-5 w-5" />
+                    {unreadNotifications > 0 && (
+                      <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-xs flex items-center justify-center p-0">
+                        {unreadNotifications}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-80 bg-slate-800 border-slate-700">
+                  <div className="p-2">
+                    <h3 className="font-semibold text-white mb-2">Notifications</h3>
+                    {notifications.length === 0 ? (
+                      <p className="text-slate-400 text-sm">No notifications yet</p>
+                    ) : (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {notifications.slice(0, 5).map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`p-2 rounded text-sm ${
+                              notification.read ? "text-slate-400" : "text-white bg-slate-700"
+                            }`}
+                          >
+                            <p>{notification.message}</p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {new Date(notification.timestamp).toLocaleString()}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* User Profile Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="p-0">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.avatar_url || "/placeholder-user.jpg"} />
+                      <AvatarFallback className="bg-purple-600">
+                        {user?.username?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700">
+                  <DropdownMenuItem onClick={() => router.push("/settings")} className="text-white hover:bg-slate-700">
+                    <User className="mr-2 h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={logout} className="text-white hover:bg-slate-700">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </header>
@@ -174,7 +239,12 @@ export default function HomePage() {
               <Button variant="ghost" size="sm" className="text-slate-300 hover:bg-slate-700">
                 <Settings className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="sm" className="text-slate-300 hover:bg-slate-700">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-slate-300 hover:bg-slate-700"
+                onClick={() => router.push("/chat")}
+              >
                 <MessageCircle className="h-5 w-5" />
               </Button>
             </nav>
@@ -203,7 +273,7 @@ export default function HomePage() {
 
             {/* Upload Button */}
             <div className="mb-6">
-              <Button className="bg-purple-600 hover:bg-purple-700">
+              <Button className="bg-green-600 hover:bg-green-700" onClick={() => router.push("/upload")}>
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Media
               </Button>
@@ -212,12 +282,17 @@ export default function HomePage() {
             {/* Recently Uploaded Section */}
             <section className="mb-8">
               <h2 className="text-2xl font-bold mb-6">Uptently uploads</h2>
-              
+
               {loading ? (
                 <div className="flex space-x-4">
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="w-64 h-80 bg-slate-800 rounded-lg animate-pulse" />
                   ))}
+                </div>
+              ) : mediaItems.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-400 text-lg">No interactions yet</p>
+                  <p className="text-slate-500 text-sm mt-2">Be the first to upload something!</p>
                 </div>
               ) : (
                 <div className="flex space-x-4 overflow-x-auto pb-4">
@@ -251,11 +326,9 @@ export default function HomePage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleLike(item.id)}
-                              className={`text-slate-300 hover:bg-slate-700 ${
-                                item.isLiked ? 'text-red-500' : ''
-                              }`}
+                              className={`text-slate-300 hover:bg-slate-700 ${item.isLiked ? "text-red-500" : ""}`}
                             >
-                              <Heart className={`h-4 w-4 mr-1 ${item.isLiked ? 'fill-current' : ''}`} />
+                              <span className="mr-1">{item.isLiked ? "❤️" : "🤍"}</span>
                               {item.likes}
                             </Button>
                             <Button variant="ghost" size="sm" className="text-slate-300 hover:bg-slate-700">
@@ -271,31 +344,33 @@ export default function HomePage() {
               )}
 
               {/* Pagination dots */}
-              <div className="flex justify-center mt-4 space-x-2">
-                {[0, 1, 2, 3].map((dot) => (
-                  <div
-                    key={dot}
-                    className={`w-2 h-2 rounded-full ${
-                      dot === 0 ? 'bg-purple-600' : 'bg-slate-600'
-                    }`}
-                  />
-                ))}
-              </div>
+              {mediaItems.length > 0 && (
+                <div className="flex justify-center mt-4 space-x-2">
+                  {[0, 1, 2, 3].map((dot) => (
+                    <div key={dot} className={`w-2 h-2 rounded-full ${dot === 0 ? "bg-purple-600" : "bg-slate-600"}`} />
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* Photo Stream Section */}
             <section>
               <h2 className="text-2xl font-bold mb-6">Photo Stream</h2>
-              
+
               {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="h-80 bg-slate-800 rounded-lg animate-pulse" />
                   ))}
                 </div>
+              ) : mediaItems.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-400 text-lg">No interactions yet</p>
+                  <p className="text-slate-500 text-sm mt-2">Upload some media to get started!</p>
+                </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {mediaItems.slice(0, 3).map((item) => (
+                  {mediaItems.map((item) => (
                     <Card key={item.id} className="bg-slate-800 border-slate-700">
                       <CardContent className="p-0">
                         <div className="relative">
@@ -330,11 +405,9 @@ export default function HomePage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleLike(item.id)}
-                              className={`text-slate-300 hover:bg-slate-700 ${
-                                item.isLiked ? 'text-red-500' : ''
-                              }`}
+                              className={`text-slate-300 hover:bg-slate-700 ${item.isLiked ? "text-red-500" : ""}`}
                             >
-                              <Heart className={`h-4 w-4 mr-1 ${item.isLiked ? 'fill-current' : ''}`} />
+                              <span className="mr-1">{item.isLiked ? "❤️" : "🤍"}</span>
                               {item.likes}
                             </Button>
                             <Button variant="ghost" size="sm" className="text-slate-300 hover:bg-slate-700">
