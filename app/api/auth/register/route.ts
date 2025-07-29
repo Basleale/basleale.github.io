@@ -1,28 +1,31 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getUsers, saveUsers, hashPassword, generateToken } from "@/lib/auth-utils"
+import { put, list } from "@vercel/blob"
+import { hashPassword } from "@/lib/utils"
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, email, password, displayName } = await request.json()
+    const { username, email, displayName, password } = await request.json()
 
-    if (!username || !email || !password || !displayName) {
-      return NextResponse.json({ error: "All fields are required" }, { status: 400 })
+    // Get existing users
+    const { blobs } = await list({ prefix: "users.txt" })
+    let users: any[] = []
+
+    if (blobs.length > 0) {
+      const response = await fetch(blobs[0].url)
+      const content = await response.text()
+      if (content.trim()) {
+        users = content.split("\n").map((line) => JSON.parse(line))
+      }
     }
 
-    const users = await getUsers()
-
-    // Check if user already exists
-    if (users.find((user) => user.username === username)) {
+    // Check if username already exists
+    if (users.some((user) => user.username === username)) {
       return NextResponse.json({ error: "Username already exists" }, { status: 400 })
-    }
-
-    if (users.find((user) => user.email === email)) {
-      return NextResponse.json({ error: "Email already exists" }, { status: 400 })
     }
 
     // Create new user
     const newUser = {
-      id: generateToken(),
+      id: Date.now().toString(),
       username,
       email,
       displayName,
@@ -30,22 +33,18 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     }
 
+    // Add to users array
     users.push(newUser)
-    await saveUsers(users)
 
-    // Generate auth token
-    const token = generateToken()
+    // Save back to file
+    const content = users.map((user) => JSON.stringify(user)).join("\n")
+    await put("users.txt", content, { access: "public" })
 
-    // Return user data without password
+    // Return user without password
     const { password: _, ...userWithoutPassword } = newUser
-
-    return NextResponse.json({
-      success: true,
-      token,
-      user: userWithoutPassword,
-    })
+    return NextResponse.json(userWithoutPassword)
   } catch (error) {
-    console.error("Registration error:", error)
+    console.error("Registration failed:", error)
     return NextResponse.json({ error: "Registration failed" }, { status: 500 })
   }
 }

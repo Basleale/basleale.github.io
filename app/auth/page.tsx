@@ -3,14 +3,8 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Eye, EyeOff } from "lucide-react"
-import { toast } from "sonner"
+import { useAuth } from "@/lib/auth"
+import { showToast } from "@/lib/utils"
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true)
@@ -28,9 +22,9 @@ export default function AuthPage() {
   const [registerForm, setRegisterForm] = useState({
     username: "",
     email: "",
+    displayName: "",
     password: "",
     confirmPassword: "",
-    displayName: "",
   })
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -40,13 +34,13 @@ export default function AuthPage() {
     try {
       const success = await login(loginForm.username, loginForm.password)
       if (success) {
-        toast.success("Login successful!")
+        showToast("Login successful!", "success")
         router.push("/")
       } else {
-        toast.error("Invalid credentials")
+        showToast("Invalid credentials", "error")
       }
     } catch (error) {
-      toast.error("Login failed")
+      showToast("Login failed", "error")
     } finally {
       setLoading(false)
     }
@@ -56,7 +50,7 @@ export default function AuthPage() {
     e.preventDefault()
 
     if (registerForm.password !== registerForm.confirmPassword) {
-      toast.error("Passwords do not match")
+      showToast("Passwords do not match", "error")
       return
     }
 
@@ -66,172 +60,174 @@ export default function AuthPage() {
       const success = await register(
         registerForm.username,
         registerForm.email,
-        registerForm.password,
         registerForm.displayName,
+        registerForm.password,
       )
 
       if (success) {
-        toast.success("Registration successful!")
+        showToast("Registration successful!", "success")
         router.push("/")
       } else {
-        toast.error("Registration failed")
+        showToast("Registration failed", "error")
       }
     } catch (error) {
-      toast.error("Registration failed")
+      showToast("Registration failed", "error")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Eneskench Summit</CardTitle>
-          <CardDescription>Sign in to your account or create a new one</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={isLogin ? "login" : "register"} onValueChange={(value) => setIsLogin(value === "login")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
-            </TabsList>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="card max-w-md w-full">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold mb-2">Eneskench Summit</h1>
+          <p className="text-muted-foreground">Sign in to your account or create a new one</p>
+        </div>
 
-            <TabsContent value="login" className="space-y-4">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
+        <div className="tabs">
+          <div className="tab-list">
+            <button className={`tab-trigger ${isLogin ? "active" : ""}`} onClick={() => setIsLogin(true)}>
+              Login
+            </button>
+            <button className={`tab-trigger ${!isLogin ? "active" : ""}`} onClick={() => setIsLogin(false)}>
+              Register
+            </button>
+          </div>
+
+          {isLogin ? (
+            <div className="tab-content">
+              <form onSubmit={handleLogin}>
+                <div className="form-group">
+                  <label className="label">Username</label>
+                  <input
+                    className="input"
                     type="text"
                     value={loginForm.username}
                     onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                    required
                     placeholder="Enter your username"
+                    required
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                <div className="form-group">
+                  <label className="label">Password</label>
                   <div className="relative">
-                    <Input
-                      id="password"
+                    <input
+                      className="input"
                       type={showPassword ? "text" : "password"}
                       value={loginForm.password}
                       onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                      required
                       placeholder="Enter your password"
+                      required
                     />
-                    <Button
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      className="absolute right-0 top-0 h-full px-4 button-outline"
                       onClick={() => setShowPassword(!showPassword)}
+                      style={{ border: "none", background: "none" }}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={loading}>
+                <button type="submit" className="button w-full" disabled={loading}>
                   {loading ? "Signing in..." : "Sign In"}
-                </Button>
+                </button>
               </form>
-            </TabsContent>
-
-            <TabsContent value="register" className="space-y-4">
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="reg-username">Username</Label>
-                  <Input
-                    id="reg-username"
+            </div>
+          ) : (
+            <div className="tab-content">
+              <form onSubmit={handleRegister}>
+                <div className="form-group">
+                  <label className="label">Username</label>
+                  <input
+                    className="input"
                     type="text"
                     value={registerForm.username}
                     onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })}
-                    required
                     placeholder="Choose a username"
+                    required
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="reg-email">Email</Label>
-                  <Input
-                    id="reg-email"
+                <div className="form-group">
+                  <label className="label">Email</label>
+                  <input
+                    className="input"
                     type="email"
                     value={registerForm.email}
                     onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-                    required
                     placeholder="Enter your email"
+                    required
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="reg-displayName">Display Name</Label>
-                  <Input
-                    id="reg-displayName"
+                <div className="form-group">
+                  <label className="label">Display Name</label>
+                  <input
+                    className="input"
                     type="text"
                     value={registerForm.displayName}
                     onChange={(e) => setRegisterForm({ ...registerForm, displayName: e.target.value })}
-                    required
                     placeholder="Your display name"
+                    required
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="reg-password">Password</Label>
+                <div className="form-group">
+                  <label className="label">Password</label>
                   <div className="relative">
-                    <Input
-                      id="reg-password"
+                    <input
+                      className="input"
                       type={showPassword ? "text" : "password"}
                       value={registerForm.password}
                       onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                      required
                       placeholder="Create a password"
+                      required
                     />
-                    <Button
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      className="absolute right-0 top-0 h-full px-4"
                       onClick={() => setShowPassword(!showPassword)}
+                      style={{ border: "none", background: "none" }}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="reg-confirm-password">Confirm Password</Label>
+                <div className="form-group">
+                  <label className="label">Confirm Password</label>
                   <div className="relative">
-                    <Input
-                      id="reg-confirm-password"
+                    <input
+                      className="input"
                       type={showConfirmPassword ? "text" : "password"}
                       value={registerForm.confirmPassword}
                       onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
-                      required
                       placeholder="Confirm your password"
+                      required
                     />
-                    <Button
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      className="absolute right-0 top-0 h-full px-4"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      style={{ border: "none", background: "none" }}
                     >
-                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
+                      {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={loading}>
+                <button type="submit" className="button w-full" disabled={loading}>
                   {loading ? "Creating account..." : "Create Account"}
-                </Button>
+                </button>
               </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

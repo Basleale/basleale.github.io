@@ -1,25 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getUsers, saveUsers, verifyPassword, hashPassword } from "@/lib/auth-utils"
+import { put, list } from "@vercel/blob"
+import { hashPassword } from "@/lib/utils"
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "No token provided" }, { status: 401 })
+    const { userId, displayName, currentPassword, newPassword } = await request.json()
+
+    // Get existing users
+    const { blobs } = await list({ prefix: "users.txt" })
+    if (blobs.length === 0) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const { displayName, currentPassword, newPassword } = await request.json()
+    const response = await fetch(blobs[0].url)
+    const content = await response.text()
+    const users = content.split("\n").map((line) => JSON.parse(line))
 
-    if (!displayName) {
-      return NextResponse.json({ error: "Display name is required" }, { status: 400 })
-    }
-
-    const users = await getUsers()
-
-    // In a real app, you'd decode the JWT to get user ID
-    // For now, we'll find the first user as a mock
-    const userIndex = users.findIndex((user) => user.id)
-
+    const userIndex = users.findIndex((u) => u.id === userId)
     if (userIndex === -1) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
@@ -27,27 +24,29 @@ export async function POST(request: NextRequest) {
     const user = users[userIndex]
 
     // If changing password, verify current password
-    if (newPassword) {
-      if (!currentPassword || !verifyPassword(currentPassword, user.password)) {
+    if (newPassword && currentPassword) {
+      if (user.password !== hashPassword(currentPassword)) {
         return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 })
       }
       user.password = hashPassword(newPassword)
     }
 
-    user.displayName = displayName
+    // Update display name
+    if (displayName) {
+      user.displayName = displayName
+    }
+
     users[userIndex] = user
 
-    await saveUsers(users)
+    // Save back to file
+    const newContent = users.map((u) => JSON.stringify(u)).join("\n")
+    await put("users.txt", newContent, { access: "public" })
 
-    // Return user data without password
+    // Return user without password
     const { password: _, ...userWithoutPassword } = user
-
-    return NextResponse.json({
-      success: true,
-      user: userWithoutPassword,
-    })
+    return NextResponse.json(userWithoutPassword)
   } catch (error) {
-    console.error("Profile update error:", error)
+    console.error("Profile update failed:", error)
     return NextResponse.json({ error: "Profile update failed" }, { status: 500 })
   }
 }

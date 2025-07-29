@@ -1,15 +1,83 @@
 "use client"
 
-import { useAuth } from "@/lib/auth-context"
-import { ProtectedRoute } from "@/components/protected-route"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Upload, MessageCircle, Settings, LogOut } from "lucide-react"
+import type React from "react"
+
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth"
+import ProtectedRoute from "@/components/ProtectedRoute"
+import { showToast } from "@/lib/utils"
+
+interface MediaItem {
+  id: string
+  title: string
+  description: string
+  username: string
+  fileUrl?: string
+  fileType?: string
+  likes: number
+  createdAt: string
+}
 
 export default function HomePage() {
   const { user, logout } = useAuth()
   const router = useRouter()
+  const [media, setMedia] = useState<MediaItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploadForm, setUploadForm] = useState({
+    title: "",
+    description: "",
+  })
+
+  useEffect(() => {
+    fetchMedia()
+  }, [])
+
+  const fetchMedia = async () => {
+    try {
+      const response = await fetch("/api/media")
+      const data = await response.json()
+      setMedia(data)
+    } catch (error) {
+      console.error("Failed to fetch media:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!uploadForm.title.trim()) {
+      showToast("Please enter a title", "error")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: uploadForm.title,
+          description: uploadForm.description,
+          userId: user?.id,
+          username: user?.displayName || user?.username,
+          fileUrl: "/placeholder.svg?height=200&width=300",
+          fileType: "image",
+        }),
+      })
+
+      if (response.ok) {
+        showToast("Media uploaded successfully!", "success")
+        setUploadForm({ title: "", description: "" })
+        fetchMedia()
+      } else {
+        showToast("Failed to upload media", "error")
+      }
+    } catch (error) {
+      showToast("Failed to upload media", "error")
+    }
+  }
 
   const handleLogout = () => {
     logout()
@@ -18,82 +86,96 @@ export default function HomePage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+      <div className="min-h-screen" style={{ backgroundColor: "hsl(var(--background))" }}>
+        {/* Header */}
+        <header className="border-b" style={{ borderColor: "hsl(var(--border))" }}>
+          <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
             <h1 className="text-2xl font-bold">Eneskench Summit</h1>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">Welcome, {user?.displayName}</span>
-              <Button variant="outline" size="sm" onClick={() => router.push("/settings")}>
-                <Settings className="h-4 w-4 mr-2" />
+              <span>Welcome, {user?.displayName || user?.username}!</span>
+              <button onClick={() => router.push("/settings")} className="button-outline">
                 Settings
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
+              </button>
+              <button onClick={() => router.push("/chat")} className="button-outline">
+                Chat
+              </button>
+              <button onClick={handleLogout} className="button">
                 Logout
-              </Button>
+              </button>
             </div>
           </div>
         </header>
 
-        <main className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="h-5 w-5" />
-                  Upload Media
-                </CardTitle>
-                <CardDescription>Share your photos and videos with the community</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full">Upload Files</Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageCircle className="h-5 w-5" />
-                  Chat
-                </CardTitle>
-                <CardDescription>Connect with other users in real-time</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full" onClick={() => router.push("/chat")}>
-                  Open Chat
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Settings
-                </CardTitle>
-                <CardDescription>Manage your account and preferences</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-transparent" variant="outline" onClick={() => router.push("/settings")}>
-                  Open Settings
-                </Button>
-              </CardContent>
-            </Card>
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          {/* Upload Form */}
+          <div className="card mb-8">
+            <h2 className="text-xl font-bold mb-4">Share Something</h2>
+            <form onSubmit={handleUpload}>
+              <div className="form-group">
+                <label className="label">Title</label>
+                <input
+                  className="input"
+                  type="text"
+                  value={uploadForm.title}
+                  onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
+                  placeholder="What's this about?"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="label">Description</label>
+                <textarea
+                  className="input"
+                  value={uploadForm.description}
+                  onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })}
+                  placeholder="Tell us more..."
+                  rows={3}
+                  style={{ height: "auto", minHeight: "80px" }}
+                />
+              </div>
+              <button type="submit" className="button">
+                Share
+              </button>
+            </form>
           </div>
 
-          <div className="mt-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>No recent activity to show</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Start by uploading some media or joining a chat!</p>
-              </CardContent>
-            </Card>
+          {/* Media Feed */}
+          <div>
+            <h2 className="text-xl font-bold mb-4">Recent Posts</h2>
+            {loading ? (
+              <div className="text-center py-8">Loading...</div>
+            ) : media.length === 0 ? (
+              <div className="card text-center py-8">
+                <p className="text-muted-foreground">No posts yet. Be the first to share something!</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {media.map((item) => (
+                  <div key={item.id} className="card">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="font-bold text-lg">{item.title}</h3>
+                        <p className="text-muted-foreground text-sm">
+                          by {item.username} • {new Date(item.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="text-sm text-muted-foreground">❤️ {item.likes}</div>
+                    </div>
+                    {item.description && <p className="mb-4">{item.description}</p>}
+                    {item.fileUrl && (
+                      <img
+                        src={item.fileUrl || "/placeholder.svg"}
+                        alt={item.title}
+                        className="w-full rounded"
+                        style={{ maxHeight: "400px", objectFit: "cover" }}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </main>
+        </div>
       </div>
     </ProtectedRoute>
   )
