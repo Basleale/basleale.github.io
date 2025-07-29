@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
-import { verifyToken } from "@/lib/auth"
+import { verifyToken } from "@/lib/auth-utils"
 
 export async function POST(request: NextRequest) {
   try {

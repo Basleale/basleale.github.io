@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { put, list } from "@vercel/blob"
-import { verifyToken } from "@/lib/auth"
+import { verifyToken } from "@/lib/auth-utils"
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    // Get conversations from blob storage
+    // Get conversations
     let conversations: any[] = []
     try {
       const { blobs } = await list({ prefix: "conversations.json" })
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const { participant_id, type = "private" } = await request.json()
 
-    // Get conversations from blob storage
+    // Get conversations
     let conversations: any[] = []
     try {
       const { blobs } = await list({ prefix: "conversations.json" })

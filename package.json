@@ -39,14 +39,11 @@
     "@vercel/blob": "latest",
     "@vercel/kv": "latest",
     "@vercel/postgres": "latest",
-    "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "latest",
-    "date-fns": "^2.30.0",
     "embla-carousel-react": "latest",
     "input-otp": "latest",
-    "jsonwebtoken": "latest",
     "lucide-react": "^0.454.0",
     "next": "14.2.16",
     "next-themes": "latest",
@@ -62,16 +59,14 @@
     "vaul": "latest"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "autoprefixer": "^10",
-    "eslint": "^8",
-    "eslint-config-next": "14.0.0",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.55.0",
+    "eslint-config-next": "14.0.4",
     "postcss": "^8.5",
-    "tailwindcss": "^3",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5"
   }
 }

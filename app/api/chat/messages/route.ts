@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { put, list } from "@vercel/blob"
-import { verifyToken } from "@/lib/auth"
+import { verifyToken } from "@/lib/auth-utils"
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const conversationId = searchParams.get("conversation_id")
     const type = searchParams.get("type") || "private"
 
-    // Get messages from blob storage
+    // Get messages
     let messages: any[] = []
     try {
       const { blobs } = await list({ prefix: "messages.json" })
@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { content, conversation_id, type = "text", file_url, voice_url } = await request.json()
+    const { content, conversation_id, message_type = "text", file_url, voice_url } = await request.json()
 
-    // Get messages from blob storage
+    // Get messages
     let messages: any[] = []
     try {
       const { blobs } = await list({ prefix: "messages.json" })
@@ -81,7 +81,8 @@ export async function POST(request: NextRequest) {
       username: user.username,
       display_name: user.display_name,
       content,
-      type,
+      type: conversation_id === "general" ? "general" : "private",
+      message_type,
       file_url,
       voice_url,
       created_at: new Date().toISOString(),

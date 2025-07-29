@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -9,7 +11,11 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { Upload, Heart, MessageCircle, Share2, Settings, LogOut, Bell, Search, Users } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Upload, Heart, MessageCircle, Share2, Settings, LogOut, Bell, Search } from "lucide-react"
+import { toast } from "sonner"
 import ProtectedRoute from "@/components/protected-route"
 
 interface MediaItem {
@@ -35,10 +41,19 @@ export default function HomePage() {
   const [media, setMedia] = useState<MediaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [notifications] = useState([
+  const [isUploadOpen, setIsUploadOpen] = useState(false)
+  const [uploadData, setUploadData] = useState({
+    title: "",
+    description: "",
+  })
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  const notifications = [
     { id: "1", message: "Welcome to Eneskench Summit!", time: "2 hours ago" },
     { id: "2", message: "New features available in chat", time: "1 day ago" },
-  ])
+  ]
 
   useEffect(() => {
     loadMedia()
@@ -66,6 +81,55 @@ export default function HomePage() {
   const handleLogout = () => {
     logout()
     router.push("/auth")
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+      setUploadData({ ...uploadData, title: file.name })
+    }
+  }
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedFile) {
+      toast.error("Please select a file")
+      return
+    }
+
+    setIsUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", selectedFile)
+      formData.append("title", uploadData.title)
+      formData.append("description", uploadData.description)
+
+      const response = await fetch("/api/media", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      })
+
+      if (response.ok) {
+        toast.success("Media uploaded successfully!")
+        setIsUploadOpen(false)
+        setSelectedFile(null)
+        setUploadData({ title: "", description: "" })
+        loadMedia()
+      } else {
+        const data = await response.json()
+        toast.error(data.error || "Upload failed")
+      }
+    } catch (error) {
+      console.error("Upload error:", error)
+      toast.error("Upload failed")
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const filteredMedia = media.filter(
@@ -169,10 +233,67 @@ export default function HomePage() {
                   <CardTitle className="text-white">Quick Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Media
-                  </Button>
+                  <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload Media
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="bg-slate-800 border-slate-700">
+                      <DialogHeader>
+                        <DialogTitle className="text-white">Upload Media</DialogTitle>
+                      </DialogHeader>
+                      <form onSubmit={handleUpload} className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="file" className="text-slate-300">
+                            Select File
+                          </Label>
+                          <Input
+                            id="file"
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileSelect}
+                            className="bg-slate-700 border-slate-600 text-white"
+                            accept="image/*,video/*"
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="title" className="text-slate-300">
+                            Title
+                          </Label>
+                          <Input
+                            id="title"
+                            type="text"
+                            value={uploadData.title}
+                            onChange={(e) => setUploadData({ ...uploadData, title: e.target.value })}
+                            className="bg-slate-700 border-slate-600 text-white"
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="description" className="text-slate-300">
+                            Description
+                          </Label>
+                          <Textarea
+                            id="description"
+                            value={uploadData.description}
+                            onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })}
+                            className="bg-slate-700 border-slate-600 text-white"
+                            rows={3}
+                          />
+                        </div>
+
+                        <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isUploading}>
+                          {isUploading ? "Uploading..." : "Upload"}
+                        </Button>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+
                   <Button
                     variant="outline"
                     className="w-full border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 bg-transparent"
@@ -180,14 +301,6 @@ export default function HomePage() {
                   >
                     <MessageCircle className="w-4 h-4 mr-2" />
                     Join Chat
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 bg-transparent"
-                    onClick={() => router.push("/all-media")}
-                  >
-                    <Users className="w-4 h-4 mr-2" />
-                    Browse All
                   </Button>
                 </CardContent>
               </Card>
@@ -207,7 +320,7 @@ export default function HomePage() {
                   ) : filteredMedia.length === 0 ? (
                     <div className="text-center py-8">
                       <div className="text-slate-400">
-                        {searchQuery ? "No media found matching your search." : "No interactions yet"}
+                        {searchQuery ? "No media found matching your search." : "No media uploaded yet"}
                       </div>
                     </div>
                   ) : (
@@ -217,7 +330,7 @@ export default function HomePage() {
                           <CardContent className="p-4">
                             <div className="aspect-square bg-slate-600 rounded-lg mb-3 overflow-hidden">
                               <img
-                                src={item.url || "/placeholder.svg"}
+                                src={item.url || "/placeholder.svg?height=300&width=300"}
                                 alt={item.title}
                                 className="w-full h-full object-cover"
                               />

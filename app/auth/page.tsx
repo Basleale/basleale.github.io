@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
@@ -114,7 +113,7 @@ export default function AuthPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-blue-400 mb-2">Eneskench Summit</h1>
-          <p className="text-slate-400">Media sharing platform</p>
+          <p className="text-slate-400">Media sharing platform with chat</p>
         </div>
 
         <Card className="bg-slate-800 border-slate-700">
@@ -131,7 +130,7 @@ export default function AuthPage() {
             <TabsContent value="login">
               <CardHeader>
                 <CardTitle className="text-white">Welcome back</CardTitle>
-                <CardDescription className="text-slate-400">Sign in to your account to continue</CardDescription>
+                <CardDescription className="text-slate-400">Sign in to your account</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleLogin} className="space-y-4">
@@ -191,7 +190,7 @@ export default function AuthPage() {
             <TabsContent value="register">
               <CardHeader>
                 <CardTitle className="text-white">Create account</CardTitle>
-                <CardDescription className="text-slate-400">Join the community and start sharing</CardDescription>
+                <CardDescription className="text-slate-400">Join the community</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleRegister} className="space-y-4">

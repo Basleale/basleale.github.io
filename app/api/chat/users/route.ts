@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { list } from "@vercel/blob"
-import { verifyToken } from "@/lib/auth"
+import { verifyToken } from "@/lib/auth-utils"
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    // Get users from blob storage
+    // Get users
     let users: any[] = []
     try {
       const { blobs } = await list({ prefix: "users.json" })
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Users not found" }, { status: 404 })
     }
 
-    // Return users without passwords
+    // Return users without passwords, excluding current user
     const safeUsers = users
       .filter((u) => u.id !== user.userId)
       .map((u) => ({

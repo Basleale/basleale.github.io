@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { list } from "@vercel/blob"
-import { hashPassword, createToken } from "@/lib/auth"
+import { hashPassword, createToken } from "@/lib/auth-utils"
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
     }
 
-    // Get users from blob storage
+    // Get users
     let users: any[] = []
     try {
       const { blobs } = await list({ prefix: "users.json" })
@@ -29,25 +29,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const hashedPassword = await hashPassword(password)
+    const hashedPassword = hashPassword(password)
     if (user.password !== hashedPassword) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
     // Create token
-    const token = createToken({
-      id: user.id,
-      username: user.username,
-      display_name: user.display_name,
-      email: user.email,
-      created_at: user.created_at,
-    })
+    const token = createToken(user)
 
     const userResponse = {
       id: user.id,
       username: user.username,
-      display_name: user.display_name,
       email: user.email,
+      display_name: user.display_name,
       avatar_url: user.avatar_url,
       created_at: user.created_at,
     }

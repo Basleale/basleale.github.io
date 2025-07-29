@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/lib/auth-context"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,7 +22,8 @@ interface Message {
   username: string
   display_name: string
   content: string
-  type: "text" | "voice" | "file"
+  type: "general" | "private"
+  message_type: "text" | "voice" | "file"
   file_url?: string
   voice_url?: string
   created_at: string
@@ -43,6 +45,7 @@ interface Conversation {
 
 export default function ChatPage() {
   const { user, token } = useAuth()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState("general")
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
@@ -143,7 +146,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           content: message,
           conversation_id: activeTab === "general" ? "general" : selectedConversation,
-          type: "text",
+          message_type: "text",
         }),
       })
 
@@ -211,7 +214,7 @@ export default function ChatPage() {
           body: JSON.stringify({
             content: "Voice message",
             conversation_id: activeTab === "general" ? "general" : selectedConversation,
-            type: "voice",
+            message_type: "voice",
             voice_url: url,
           }),
         })
@@ -249,7 +252,7 @@ export default function ChatPage() {
           body: JSON.stringify({
             content: `Shared file: ${filename}`,
             conversation_id: activeTab === "general" ? "general" : selectedConversation,
-            type: "file",
+            message_type: "file",
             file_url: url,
           }),
         })
@@ -310,7 +313,14 @@ export default function ChatPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-900">
         <div className="max-w-7xl mx-auto p-4">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-2rem)]">
+          <div className="mb-4">
+            <Button variant="ghost" onClick={() => router.push("/")} className="text-slate-400 hover:text-white">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Home
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-8rem)]">
             {/* Sidebar */}
             <div className="lg:col-span-1">
               <Card className="bg-slate-800 border-slate-700 h-full">
@@ -442,9 +452,9 @@ export default function ChatPage() {
                                 msg.user_id === user?.id ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-100"
                               }`}
                             >
-                              {msg.type === "text" && <p className="text-sm">{msg.content}</p>}
+                              {msg.message_type === "text" && <p className="text-sm">{msg.content}</p>}
 
-                              {msg.type === "voice" && msg.voice_url && (
+                              {msg.message_type === "voice" && msg.voice_url && (
                                 <div className="flex items-center gap-2">
                                   <Button
                                     size="sm"
@@ -462,7 +472,7 @@ export default function ChatPage() {
                                 </div>
                               )}
 
-                              {msg.type === "file" && msg.file_url && (
+                              {msg.message_type === "file" && msg.file_url && (
                                 <div className="space-y-2">
                                   <p className="text-sm">{msg.content}</p>
                                   <Button

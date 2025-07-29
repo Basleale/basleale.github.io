@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { put, list } from "@vercel/blob"
-import { verifyToken, hashPassword } from "@/lib/auth"
+import { verifyToken, hashPassword } from "@/lib/auth-utils"
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const { display_name, current_password, new_password } = await request.json()
 
-    // Get users from blob storage
+    // Get users
     let users: any[] = []
     try {
       const { blobs } = await list({ prefix: "users.json" })
@@ -44,11 +44,11 @@ export async function POST(request: NextRequest) {
 
     // Update password if provided
     if (current_password && new_password) {
-      const currentHashedPassword = await hashPassword(current_password)
+      const currentHashedPassword = hashPassword(current_password)
       if (existingUser.password !== currentHashedPassword) {
         return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 })
       }
-      existingUser.password = await hashPassword(new_password)
+      existingUser.password = hashPassword(new_password)
     }
 
     users[userIndex] = existingUser
@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
     const userResponse = {
       id: existingUser.id,
       username: existingUser.username,
-      display_name: existingUser.display_name,
       email: existingUser.email,
+      display_name: existingUser.display_name,
       avatar_url: existingUser.avatar_url,
       created_at: existingUser.created_at,
     }

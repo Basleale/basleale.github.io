@@ -6,9 +6,10 @@ import { createContext, useContext, useState, useEffect } from "react"
 interface User {
   id: string
   username: string
-  display_name: string
   email: string
+  display_name: string
   avatar_url?: string
+  created_at: string
 }
 
 interface AuthContextType {
