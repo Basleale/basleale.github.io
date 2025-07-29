@@ -16,8 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const conversationId = searchParams.get("conversation_id")
-    const type = searchParams.get("type") || "private"
+    const conversationId = searchParams.get("conversationId")
 
     // Get messages
     let messages: any[] = []
@@ -31,13 +30,10 @@ export async function GET(request: NextRequest) {
       console.log("No messages found")
     }
 
-    // Filter messages
-    let filteredMessages = []
-    if (type === "general") {
-      filteredMessages = messages.filter((msg) => msg.type === "general")
-    } else if (conversationId) {
-      filteredMessages = messages.filter((msg) => msg.conversation_id === conversationId)
-    }
+    // Filter messages by conversation
+    const filteredMessages = conversationId
+      ? messages.filter((m) => m.conversation_id === conversationId)
+      : messages.filter((m) => m.conversation_id === "general")
 
     return NextResponse.json({ messages: filteredMessages })
   } catch (error) {
@@ -59,9 +55,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { content, conversation_id, message_type = "text", file_url, voice_url } = await request.json()
+    const { content, conversation_id, type, file_url, file_name } = await request.json()
 
-    // Get messages
+    if (!content && !file_url) {
+      return NextResponse.json({ error: "Message content or file required" }, { status: 400 })
+    }
+
+    // Get existing messages
     let messages: any[] = []
     try {
       const { blobs } = await list({ prefix: "messages.json" })
@@ -76,15 +76,16 @@ export async function POST(request: NextRequest) {
     // Create new message
     const newMessage = {
       id: Date.now().toString(),
+      content: content || "",
       conversation_id: conversation_id || "general",
-      user_id: user.userId,
-      username: user.username,
-      display_name: user.display_name,
-      content,
-      type: conversation_id === "general" ? "general" : "private",
-      message_type,
-      file_url,
-      voice_url,
+      type: type || "text",
+      file_url: file_url || null,
+      file_name: file_name || null,
+      user: {
+        id: user.userId,
+        username: user.username,
+        display_name: user.display_name,
+      },
       created_at: new Date().toISOString(),
     }
 

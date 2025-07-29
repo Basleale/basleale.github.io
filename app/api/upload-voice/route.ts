@@ -16,20 +16,22 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData()
-    const file = formData.get("voice") as File
+    const audioBlob = formData.get("audio") as File
 
-    if (!file) {
-      return NextResponse.json({ error: "No voice file provided" }, { status: 400 })
+    if (!audioBlob) {
+      return NextResponse.json({ error: "No audio provided" }, { status: 400 })
     }
 
-    // Upload voice file to blob storage
+    // Upload audio to blob storage
     const filename = `voice/${user.userId}/${Date.now()}.webm`
-    const blob = await put(filename, file, {
+    const blob = await put(filename, audioBlob, {
       access: "public",
-      contentType: "audio/webm",
     })
 
-    return NextResponse.json({ url: blob.url })
+    return NextResponse.json({
+      url: blob.url,
+      filename: `voice-${Date.now()}.webm`,
+    })
   } catch (error) {
     console.error("Voice upload error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

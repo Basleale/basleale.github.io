@@ -1,31 +1,30 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useRef } from "react"
-import { useAuth } from "@/lib/auth-context"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { Send, Mic, Square, Paperclip, MessageCircle, ArrowLeft, Play, Pause } from "lucide-react"
-import { toast } from "sonner"
-import ProtectedRoute from "@/components/protected-route"
+import { ProtectedRoute } from "@/components/protected-route"
+import { useAuth } from "@/lib/auth-context"
+import { useToast } from "@/hooks/use-toast"
+import { Send, Mic, Paperclip, Home, MicOff, Users } from "lucide-react"
+import Link from "next/link"
 
 interface Message {
   id: string
-  conversation_id: string
-  user_id: string
-  username: string
-  display_name: string
   content: string
-  type: "general" | "private"
-  message_type: "text" | "voice" | "file"
+  conversation_id: string
+  type: "text" | "voice" | "file"
   file_url?: string
-  voice_url?: string
+  file_name?: string
+  user: {
+    id: string
+    username: string
+    display_name: string
+  }
   created_at: string
 }
 
@@ -38,35 +37,33 @@ interface User {
 
 interface Conversation {
   id: string
-  type: "private" | "general"
   participants: string[]
-  other_user?: User
+  created_at: string
 }
 
 export default function ChatPage() {
-  const { user, token } = useAuth()
-  const router = useRouter()
-  const [activeTab, setActiveTab] = useState("general")
-  const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
+  const [currentConversation, setCurrentConversation] = useState<string>("general")
+  const [newMessage, setNewMessage] = useState("")
+  const [loading, setLoading] = useState(true)
   const [isRecording, setIsRecording] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
-  const [playingAudio, setPlayingAudio] = useState<string | null>(null)
+  const { user, token } = useAuth()
+  const { toast } = useToast()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    loadUsers()
-    loadConversations()
-    loadMessages()
+    fetchUsers()
+    fetchConversations()
+    fetchMessages()
 
-    // Poll for new messages every 3 seconds
-    const interval = setInterval(loadMessages, 3000)
+    // Auto-refresh messages every 3 seconds
+    const interval = setInterval(fetchMessages, 3000)
     return () => clearInterval(interval)
-  }, [activeTab, selectedConversation])
+  }, [currentConversation])
 
   useEffect(() => {
     scrollToBottom()
@@ -76,65 +73,72 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  const loadUsers = async () => {
+  const fetchUsers = async () => {
+    if (!token) return
+
     try {
       const response = await fetch("/api/chat/users", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       })
+
       if (response.ok) {
         const data = await response.json()
-        setUsers(data.users || [])
+        setUsers(data.users.filter((u: User) => u.id !== user?.id))
       }
     } catch (error) {
-      console.error("Error loading users:", error)
+      console.error("Error fetching users:", error)
     }
   }
 
-  const loadConversations = async () => {
+  const fetchConversations = async () => {
+    if (!token) return
+
     try {
       const response = await fetch("/api/chat/conversations", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       })
+
       if (response.ok) {
         const data = await response.json()
-        const conversationsWithUsers = data.conversations.map((conv: any) => {
-          if (conv.type === "private") {
-            const otherUserId = conv.participants.find((id: string) => id !== user?.id)
-            const otherUser = users.find((u) => u.id === otherUserId)
-            return { ...conv, other_user: otherUser }
-          }
-          return conv
-        })
-        setConversations(conversationsWithUsers)
+        setConversations(data.conversations)
       }
     } catch (error) {
-      console.error("Error loading conversations:", error)
+      console.error("Error fetching conversations:", error)
     }
   }
 
-  const loadMessages = async () => {
+  const fetchMessages = async () => {
+    if (!token) return
+
     try {
-      let url = "/api/chat/messages?"
-      if (activeTab === "general") {
-        url += "type=general"
-      } else if (selectedConversation) {
-        url += `conversation_id=${selectedConversation}`
-      }
+      const url =
+        currentConversation === "general"
+          ? "/api/chat/messages"
+          : `/api/chat/messages?conversationId=${currentConversation}`
 
       const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       })
+
       if (response.ok) {
         const data = await response.json()
-        setMessages(data.messages || [])
+        setMessages(data.messages)
       }
     } catch (error) {
-      console.error("Error loading messages:", error)
+      console.error("Error fetching messages:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const sendMessage = async () => {
-    if (!message.trim()) return
+  const sendMessage = async (content: string, type = "text", file_url?: string, file_name?: string) => {
+    if (!token || (!content.trim() && !file_url)) return
 
     try {
       const response = await fetch("/api/chat/messages", {
@@ -144,20 +148,30 @@ export default function ChatPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          content: message,
-          conversation_id: activeTab === "general" ? "general" : selectedConversation,
-          message_type: "text",
+          content,
+          conversation_id: currentConversation,
+          type,
+          file_url,
+          file_name,
         }),
       })
 
       if (response.ok) {
-        setMessage("")
-        loadMessages()
+        setNewMessage("")
+        fetchMessages()
       }
     } catch (error) {
-      console.error("Error sending message:", error)
-      toast.error("Failed to send message")
+      toast({
+        title: "Error",
+        description: "Failed to send message",
+        variant: "destructive",
+      })
     }
+  }
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault()
+    sendMessage(newMessage)
   }
 
   const startRecording = async () => {
@@ -169,7 +183,7 @@ export default function ChatPage() {
       recorder.ondataavailable = (e) => chunks.push(e.data)
       recorder.onstop = async () => {
         const blob = new Blob(chunks, { type: "audio/webm" })
-        await uploadVoiceMessage(blob)
+        await uploadVoice(blob)
         stream.getTracks().forEach((track) => track.stop())
       }
 
@@ -177,8 +191,11 @@ export default function ChatPage() {
       setMediaRecorder(recorder)
       setIsRecording(true)
     } catch (error) {
-      console.error("Error starting recording:", error)
-      toast.error("Failed to access microphone")
+      toast({
+        title: "Error",
+        description: "Could not access microphone",
+        variant: "destructive",
+      })
     }
   }
 
@@ -190,83 +207,66 @@ export default function ChatPage() {
     }
   }
 
-  const uploadVoiceMessage = async (blob: Blob) => {
+  const uploadVoice = async (audioBlob: Blob) => {
+    if (!token) return
+
     try {
       const formData = new FormData()
-      formData.append("voice", blob)
+      formData.append("audio", audioBlob)
 
-      const uploadResponse = await fetch("/api/upload-voice", {
+      const response = await fetch("/api/upload-voice", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       })
 
-      if (uploadResponse.ok) {
-        const { url } = await uploadResponse.json()
-
-        // Send voice message
-        await fetch("/api/chat/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            content: "Voice message",
-            conversation_id: activeTab === "general" ? "general" : selectedConversation,
-            message_type: "voice",
-            voice_url: url,
-          }),
-        })
-
-        loadMessages()
-        toast.success("Voice message sent!")
+      if (response.ok) {
+        const data = await response.json()
+        sendMessage("Voice message", "voice", data.url, data.filename)
       }
     } catch (error) {
-      console.error("Error uploading voice:", error)
-      toast.error("Failed to send voice message")
+      toast({
+        title: "Error",
+        description: "Failed to upload voice message",
+        variant: "destructive",
+      })
     }
   }
 
-  const uploadFile = async (file: File) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !token) return
+
     try {
       const formData = new FormData()
       formData.append("file", file)
 
-      const uploadResponse = await fetch("/api/upload", {
+      const response = await fetch("/api/upload", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       })
 
-      if (uploadResponse.ok) {
-        const { url, filename } = await uploadResponse.json()
-
-        // Send file message
-        await fetch("/api/chat/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            content: `Shared file: ${filename}`,
-            conversation_id: activeTab === "general" ? "general" : selectedConversation,
-            message_type: "file",
-            file_url: url,
-          }),
-        })
-
-        loadMessages()
-        toast.success("File shared!")
+      if (response.ok) {
+        const data = await response.json()
+        sendMessage(`Shared a file: ${data.filename}`, "file", data.url, data.filename)
       }
     } catch (error) {
-      console.error("Error uploading file:", error)
-      toast.error("Failed to share file")
+      toast({
+        title: "Error",
+        description: "Failed to upload file",
+        variant: "destructive",
+      })
     }
   }
 
   const startPrivateChat = async (userId: string) => {
+    if (!token) return
+
     try {
       const response = await fetch("/api/chat/conversations", {
         method: "POST",
@@ -274,282 +274,192 @@ export default function ChatPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          participant_id: userId,
-          type: "private",
-        }),
+        body: JSON.stringify({ participant_id: userId }),
       })
 
       if (response.ok) {
-        const { conversation } = await response.json()
-        setSelectedConversation(conversation.id)
-        setActiveTab("private")
-        loadConversations()
+        const data = await response.json()
+        setCurrentConversation(data.conversation.id)
+        fetchConversations()
+        fetchMessages()
       }
     } catch (error) {
-      console.error("Error starting private chat:", error)
-      toast.error("Failed to start private chat")
+      toast({
+        title: "Error",
+        description: "Failed to start private chat",
+        variant: "destructive",
+      })
     }
   }
 
-  const playAudio = (url: string) => {
-    if (playingAudio === url) {
-      setPlayingAudio(null)
-      return
-    }
+  const getConversationName = (conversation: Conversation) => {
+    const otherParticipant = conversation.participants.find((p) => p !== user?.id)
+    const otherUser = users.find((u) => u.id === otherParticipant)
+    return otherUser?.display_name || "Unknown User"
+  }
 
-    const audio = new Audio(url)
-    audio.play()
-    setPlayingAudio(url)
-
-    audio.onended = () => setPlayingAudio(null)
-    audio.onerror = () => {
-      setPlayingAudio(null)
-      toast.error("Failed to play audio")
-    }
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-slate-900">
-        <div className="max-w-7xl mx-auto p-4">
-          <div className="mb-4">
-            <Button variant="ghost" onClick={() => router.push("/")} className="text-slate-400 hover:text-white">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 className="text-2xl font-bold">Chat</h1>
+            <Link href="/">
+              <Button variant="outline" size="sm">
+                <Home className="h-4 w-4 mr-2" />
+                Home
+              </Button>
+            </Link>
           </div>
+        </header>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-8rem)]">
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Sidebar */}
             <div className="lg:col-span-1">
-              <Card className="bg-slate-800 border-slate-700 h-full">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <MessageCircle className="w-5 h-5" />
-                    Chat
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Conversations
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 bg-slate-700">
-                      <TabsTrigger value="general" className="text-slate-300 data-[state=active]:text-white">
-                        General
-                      </TabsTrigger>
-                      <TabsTrigger value="private" className="text-slate-300 data-[state=active]:text-white">
-                        Private
-                      </TabsTrigger>
-                    </TabsList>
+                <CardContent className="space-y-2">
+                  <Button
+                    variant={currentConversation === "general" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => setCurrentConversation("general")}
+                  >
+                    General Chat
+                  </Button>
 
-                    <TabsContent value="general" className="mt-4">
-                      <div className="text-slate-300 text-sm">Community chat - everyone can see messages here</div>
-                    </TabsContent>
+                  {conversations.map((conversation) => (
+                    <Button
+                      key={conversation.id}
+                      variant={currentConversation === conversation.id ? "default" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => setCurrentConversation(conversation.id)}
+                    >
+                      {getConversationName(conversation)}
+                    </Button>
+                  ))}
 
-                    <TabsContent value="private" className="mt-4 space-y-4">
-                      <div className="space-y-2">
-                        <h3 className="text-white font-medium">Active Chats</h3>
-                        {conversations
-                          .filter((c) => c.type === "private")
-                          .map((conv) => (
-                            <Button
-                              key={conv.id}
-                              variant={selectedConversation === conv.id ? "secondary" : "ghost"}
-                              className="w-full justify-start text-slate-300 hover:text-white"
-                              onClick={() => setSelectedConversation(conv.id)}
-                            >
-                              <Avatar className="w-6 h-6 mr-2">
-                                <AvatarFallback className="bg-blue-600 text-white text-xs">
-                                  {conv.other_user?.display_name?.charAt(0).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              {conv.other_user?.display_name}
-                            </Button>
-                          ))}
-                      </div>
-
-                      <Separator className="bg-slate-600" />
-
-                      <div className="space-y-2">
-                        <h3 className="text-white font-medium">Start New Chat</h3>
-                        <ScrollArea className="h-48">
-                          {users.map((chatUser) => (
-                            <Button
-                              key={chatUser.id}
-                              variant="ghost"
-                              className="w-full justify-start text-slate-300 hover:text-white mb-1"
-                              onClick={() => startPrivateChat(chatUser.id)}
-                            >
-                              <Avatar className="w-6 h-6 mr-2">
-                                <AvatarFallback className="bg-green-600 text-white text-xs">
-                                  {chatUser.display_name.charAt(0).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              {chatUser.display_name}
-                            </Button>
-                          ))}
-                        </ScrollArea>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
+                  <div className="pt-4 border-t">
+                    <h4 className="text-sm font-medium mb-2">Start Private Chat</h4>
+                    {users.map((chatUser) => (
+                      <Button
+                        key={chatUser.id}
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-xs"
+                        onClick={() => startPrivateChat(chatUser.id)}
+                      >
+                        {chatUser.display_name}
+                      </Button>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             </div>
 
             {/* Chat Area */}
             <div className="lg:col-span-3">
-              <Card className="bg-slate-800 border-slate-700 h-full flex flex-col">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-white">
-                      {activeTab === "general" ? (
-                        "General Chat"
-                      ) : selectedConversation ? (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedConversation(null)}
-                            className="text-slate-400 hover:text-white p-1"
-                          >
-                            <ArrowLeft className="w-4 h-4" />
-                          </Button>
-                          Private Chat
-                        </div>
-                      ) : (
-                        "Select a conversation"
-                      )}
-                    </CardTitle>
-                    <Badge variant="secondary" className="bg-slate-700 text-slate-300">
-                      {messages.length} messages
-                    </Badge>
-                  </div>
+              <Card className="h-[600px] flex flex-col">
+                <CardHeader>
+                  <CardTitle>
+                    {currentConversation === "general"
+                      ? "General Chat"
+                      : `Chat with ${getConversationName(conversations.find((c) => c.id === currentConversation) || ({ participants: [] } as Conversation))}`}
+                  </CardTitle>
                 </CardHeader>
 
-                <CardContent className="flex-1 flex flex-col p-0">
-                  {/* Messages */}
-                  <ScrollArea className="flex-1 px-4">
-                    <div className="space-y-4 py-4">
-                      {messages.map((msg) => (
-                        <div
-                          key={msg.id}
-                          className={`flex gap-3 ${msg.user_id === user?.id ? "justify-end" : "justify-start"}`}
-                        >
-                          {msg.user_id !== user?.id && (
-                            <Avatar className="w-8 h-8">
-                              <AvatarFallback className="bg-blue-600 text-white text-sm">
-                                {msg.display_name.charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                          )}
-
-                          <div className={`max-w-xs lg:max-w-md ${msg.user_id === user?.id ? "order-first" : ""}`}>
-                            {msg.user_id !== user?.id && (
-                              <div className="text-slate-400 text-xs mb-1">{msg.display_name}</div>
-                            )}
-
+                {/* Messages */}
+                <CardContent className="flex-1 flex flex-col">
+                  <ScrollArea className="flex-1 pr-4">
+                    {loading ? (
+                      <div className="flex justify-center items-center h-32">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      </div>
+                    ) : messages.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No messages yet. Start the conversation!
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {messages.map((message) => (
+                          <div
+                            key={message.id}
+                            className={`flex ${message.user.id === user?.id ? "justify-end" : "justify-start"}`}
+                          >
                             <div
-                              className={`rounded-lg p-3 ${
-                                msg.user_id === user?.id ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-100"
+                              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                                message.user.id === user?.id ? "bg-primary text-primary-foreground" : "bg-muted"
                               }`}
                             >
-                              {msg.message_type === "text" && <p className="text-sm">{msg.content}</p>}
+                              <div className="text-xs opacity-70 mb-1">
+                                {message.user.display_name} • {formatTime(message.created_at)}
+                              </div>
 
-                              {msg.message_type === "voice" && msg.voice_url && (
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => playAudio(msg.voice_url!)}
-                                    className="p-1 h-8 w-8"
+                              {message.type === "voice" && message.file_url ? (
+                                <audio controls className="w-full">
+                                  <source src={message.file_url} type="audio/webm" />
+                                  Your browser does not support audio playback.
+                                </audio>
+                              ) : message.type === "file" && message.file_url ? (
+                                <div>
+                                  <p className="mb-2">{message.content}</p>
+                                  <a
+                                    href={message.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-500 hover:underline text-sm"
                                   >
-                                    {playingAudio === msg.voice_url ? (
-                                      <Pause className="w-4 h-4" />
-                                    ) : (
-                                      <Play className="w-4 h-4" />
-                                    )}
-                                  </Button>
-                                  <span className="text-xs">Voice message</span>
+                                    📎 {message.file_name}
+                                  </a>
                                 </div>
+                              ) : (
+                                <p>{message.content}</p>
                               )}
-
-                              {msg.message_type === "file" && msg.file_url && (
-                                <div className="space-y-2">
-                                  <p className="text-sm">{msg.content}</p>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => window.open(msg.file_url, "_blank")}
-                                    className="text-xs"
-                                  >
-                                    Download File
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="text-slate-500 text-xs mt-1">
-                              {new Date(msg.created_at).toLocaleTimeString()}
                             </div>
                           </div>
-
-                          {msg.user_id === user?.id && (
-                            <Avatar className="w-8 h-8">
-                              <AvatarFallback className="bg-green-600 text-white text-sm">
-                                {user.display_name?.charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                          )}
-                        </div>
-                      ))}
-                      <div ref={messagesEndRef} />
-                    </div>
+                        ))}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
                   </ScrollArea>
 
                   {/* Message Input */}
-                  {(activeTab === "general" || selectedConversation) && (
-                    <div className="border-t border-slate-700 p-4">
-                      <div className="flex gap-2">
-                        <Input
-                          value={message}
-                          onChange={(e) => setMessage(e.target.value)}
-                          placeholder="Type a message..."
-                          className="flex-1 bg-slate-700 border-slate-600 text-white"
-                          onKeyPress={(e) => e.key === "Enter" && sendMessage()}
-                        />
-
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
-                          className="hidden"
-                        />
-
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="border-slate-600 text-slate-300 hover:text-white"
-                        >
-                          <Paperclip className="w-4 h-4" />
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={isRecording ? stopRecording : startRecording}
-                          className={`border-slate-600 ${
-                            isRecording ? "text-red-400 hover:text-red-300" : "text-slate-300 hover:text-white"
-                          }`}
-                        >
-                          {isRecording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                        </Button>
-
-                        <Button onClick={sendMessage} className="bg-blue-600 hover:bg-blue-700">
-                          <Send className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  <div className="border-t pt-4 mt-4">
+                    <form onSubmit={handleSendMessage} className="flex gap-2">
+                      <Input
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Type a message..."
+                        className="flex-1"
+                      />
+                      <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                      <Button type="button" variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
+                        <Paperclip className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={isRecording ? stopRecording : startRecording}
+                        className={isRecording ? "bg-red-500 text-white" : ""}
+                      >
+                        {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                      </Button>
+                      <Button type="submit" size="icon">
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </form>
+                  </div>
                 </CardContent>
               </Card>
             </div>

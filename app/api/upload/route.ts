@@ -28,9 +28,14 @@ export async function POST(request: NextRequest) {
       access: "public",
     })
 
-    return NextResponse.json({ url: blob.url, filename: file.name })
+    return NextResponse.json({
+      url: blob.url,
+      filename: file.name,
+      size: file.size,
+      type: file.type,
+    })
   } catch (error) {
-    console.error("File upload error:", error)
+    console.error("Upload error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

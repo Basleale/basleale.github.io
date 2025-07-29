@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Filter conversations for current user
-    const userConversations = conversations.filter((conv) => conv.participants.includes(user.userId))
+    const userConversations = conversations.filter((c) => c.participants.includes(user.userId))
 
     return NextResponse.json({ conversations: userConversations })
   } catch (error) {
@@ -50,9 +50,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { participant_id, type = "private" } = await request.json()
+    const { participant_id } = await request.json()
 
-    // Get conversations
+    if (!participant_id) {
+      return NextResponse.json({ error: "Participant ID required" }, { status: 400 })
+    }
+
+    // Get existing conversations
     let conversations: any[] = []
     try {
       const { blobs } = await list({ prefix: "conversations.json" })
@@ -66,8 +70,7 @@ export async function POST(request: NextRequest) {
 
     // Check if conversation already exists
     const existingConversation = conversations.find(
-      (conv) =>
-        conv.type === type && conv.participants.includes(user.userId) && conv.participants.includes(participant_id),
+      (c) => c.participants.includes(user.userId) && c.participants.includes(participant_id),
     )
 
     if (existingConversation) {
@@ -77,10 +80,8 @@ export async function POST(request: NextRequest) {
     // Create new conversation
     const newConversation = {
       id: Date.now().toString(),
-      type,
-      participants: type === "general" ? ["general"] : [user.userId, participant_id],
+      participants: [user.userId, participant_id],
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     }
 
     conversations.push(newConversation)

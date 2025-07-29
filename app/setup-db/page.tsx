@@ -2,51 +2,52 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useToast } from "@/hooks/use-toast"
 
-export default function SetupDbPage() {
-  const [status, setStatus] = useState<string>("")
+export default function SetupDatabase() {
   const [loading, setLoading] = useState(false)
+  const { toast } = useToast()
 
   const setupDatabase = async () => {
     setLoading(true)
-    setStatus("Setting up database...")
-
     try {
       const response = await fetch("/api/setup-db", {
         method: "POST",
       })
 
-      const data = await response.json()
-
-      if (data.success) {
-        setStatus("✅ Database setup completed successfully!")
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Database initialized successfully!",
+        })
       } else {
-        setStatus(`❌ Error: ${data.error}`)
+        throw new Error("Failed to setup database")
       }
     } catch (error) {
-      setStatus(`❌ Error: ${error.message}`)
+      toast({
+        title: "Error",
+        description: "Failed to initialize database",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-red-950 flex items-center justify-center">
-      <div className="bg-gray-800/50 rounded-lg p-8 border border-gray-700 max-w-md w-full">
-        <h1 className="text-2xl font-bold text-white mb-6 text-center">Database Setup</h1>
-
-        <div className="space-y-4">
-          <Button onClick={setupDatabase} disabled={loading} className="w-full bg-purple-600 hover:bg-purple-700">
-            {loading ? "Setting up..." : "Setup Database"}
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Database Setup</CardTitle>
+          <CardDescription>Initialize the database for Eneskench Summit</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={setupDatabase} disabled={loading} className="w-full">
+            {loading ? "Setting up..." : "Initialize Database"}
           </Button>
-
-          {status && (
-            <div className="p-4 rounded-lg bg-gray-700/50 border border-gray-600">
-              <p className="text-white text-sm">{status}</p>
-            </div>
-          )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

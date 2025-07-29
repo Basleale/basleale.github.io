@@ -24,19 +24,16 @@ export async function GET(request: NextRequest) {
         users = await response.json()
       }
     } catch (error) {
-      return NextResponse.json({ error: "Users not found" }, { status: 404 })
+      console.log("No users found")
     }
 
-    // Return users without passwords, excluding current user
-    const safeUsers = users
-      .filter((u) => u.id !== user.userId)
-      .map((u) => ({
-        id: u.id,
-        username: u.username,
-        display_name: u.display_name,
-        avatar_url: u.avatar_url,
-        created_at: u.created_at,
-      }))
+    // Return users without passwords
+    const safeUsers = users.map((u) => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.display_name,
+      avatar_url: u.avatar_url,
+    }))
 
     return NextResponse.json({ users: safeUsers })
   } catch (error) {

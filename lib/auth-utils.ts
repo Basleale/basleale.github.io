@@ -1,12 +1,7 @@
+import crypto from "crypto"
+
 export function hashPassword(password: string): string {
-  // Simple hash function for demo - in production use bcrypt
-  let hash = 0
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i)
-    hash = (hash << 5) - hash + char
-    hash = hash & hash // Convert to 32bit integer
-  }
-  return hash.toString()
+  return crypto.createHash("sha256").update(password).digest("hex")
 }
 
 export function createToken(user: any): string {
@@ -15,7 +10,7 @@ export function createToken(user: any): string {
     username: user.username,
     display_name: user.display_name,
     email: user.email,
-    exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+    exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
   }
   return btoa(JSON.stringify(payload))
 }
