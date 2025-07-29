@@ -1,49 +1,25 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     // Initialize empty data files
-    const initialUsers = []
-    const initialMedia = []
-    const initialMessages = []
-    const initialConversations = []
+    const users: any[] = []
+    const media: any[] = []
+    const messages: any[] = []
+    const conversations: any[] = []
 
-    // Create users.json
-    await put("users.json", JSON.stringify(initialUsers, null, 2), {
-      access: "public",
-      contentType: "application/json",
-    })
+    // Create all database files
+    await Promise.all([
+      put("users.json", JSON.stringify(users, null, 2), { access: "public" }),
+      put("media.json", JSON.stringify(media, null, 2), { access: "public" }),
+      put("messages.json", JSON.stringify(messages, null, 2), { access: "public" }),
+      put("conversations.json", JSON.stringify(conversations, null, 2), { access: "public" }),
+    ])
 
-    // Create media.json
-    await put("media.json", JSON.stringify(initialMedia, null, 2), {
-      access: "public",
-      contentType: "application/json",
-    })
-
-    // Create messages.json
-    await put("messages.json", JSON.stringify(initialMessages, null, 2), {
-      access: "public",
-      contentType: "application/json",
-    })
-
-    // Create conversations.json
-    await put("conversations.json", JSON.stringify(initialConversations, null, 2), {
-      access: "public",
-      contentType: "application/json",
-    })
-
-    return NextResponse.json({
-      success: true,
-      message: "Database initialized successfully",
-    })
+    return NextResponse.json({ success: true, message: "Database initialized successfully" })
   } catch (error) {
-    console.error("Database setup error:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to initialize database",
-      },
-      { status: 500 },
-    )
+    console.error("Database initialization error:", error)
+    return NextResponse.json({ error: "Failed to initialize database" }, { status: 500 })
   }
 }

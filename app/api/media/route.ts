@@ -16,18 +16,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Get media
-    let media: any[] = []
-    try {
-      const { blobs } = await list({ prefix: "media.json" })
-      if (blobs.length > 0) {
-        const response = await fetch(blobs[0].url)
-        media = await response.json()
-      }
-    } catch (error) {
-      console.log("No media found")
+    const { blobs } = await list({ prefix: "media.json" })
+
+    if (blobs.length === 0) {
+      return NextResponse.json([])
     }
 
-    return NextResponse.json({ media })
+    const response = await fetch(blobs[0].url)
+    const media = await response.json()
+
+    return NextResponse.json(media || [])
   } catch (error) {
     console.error("Get media error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

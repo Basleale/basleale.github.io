@@ -6,19 +6,16 @@ import { createContext, useContext, useState, useEffect } from "react"
 interface User {
   id: string
   username: string
+  displayName: string
   email: string
-  display_name: string
-  avatar_url?: string
-  created_at: string
 }
 
 interface AuthContextType {
   user: User | null
-  token: string | null
-  login: (username: string, password: string) => Promise<void>
-  register: (username: string, email: string, display_name: string, password: string) => Promise<void>
+  login: (username: string, password: string) => Promise<boolean>
+  register: (username: string, email: string, password: string, displayName: string) => Promise<boolean>
   logout: () => void
-  updateProfile: (display_name?: string, current_password?: string, new_password?: string) => Promise<void>
+  updateProfile: (displayName: string, currentPassword?: string, newPassword?: string) => Promise<boolean>
   loading: boolean
 }
 
@@ -26,99 +23,121 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("token")
-    const savedUser = localStorage.getItem("user")
-
-    if (savedToken && savedUser) {
-      setToken(savedToken)
-      setUser(JSON.parse(savedUser))
-    }
-    setLoading(false)
+    checkAuth()
   }, [])
 
-  const login = async (username: string, password: string) => {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    })
+  const checkAuth = async () => {
+    try {
+      const token = localStorage.getItem("auth-token")
+      if (!token) {
+        setLoading(false)
+        return
+      }
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || "Login failed")
+      const response = await fetch("/api/auth/verify", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData)
+      } else {
+        localStorage.removeItem("auth-token")
+      }
+    } catch (error) {
+      console.error("Auth check failed:", error)
+      localStorage.removeItem("auth-token")
+    } finally {
+      setLoading(false)
     }
-
-    const data = await response.json()
-    setUser(data.user)
-    setToken(data.token)
-    localStorage.setItem("token", data.token)
-    localStorage.setItem("user", JSON.stringify(data.user))
   }
 
-  const register = async (username: string, email: string, display_name: string, password: string) => {
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, email, display_name, password }),
-    })
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username, password }),
+      })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || "Registration failed")
+      if (response.ok) {
+        const data = await response.json()
+        localStorage.setItem("auth-token", data.token)
+        setUser(data.user)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error("Login failed:", error)
+      return false
     }
+  }
 
-    const data = await response.json()
-    setUser(data.user)
-    setToken(data.token)
-    localStorage.setItem("token", data.token)
-    localStorage.setItem("user", JSON.stringify(data.user))
+  const register = async (username: string, email: string, password: string, displayName: string): Promise<boolean> => {
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username, email, password, displayName }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        localStorage.setItem("auth-token", data.token)
+        setUser(data.user)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error("Registration failed:", error)
+      return false
+    }
   }
 
   const logout = () => {
+    localStorage.removeItem("auth-token")
     setUser(null)
-    setToken(null)
-    localStorage.removeItem("token")
-    localStorage.removeItem("user")
   }
 
-  const updateProfile = async (display_name?: string, current_password?: string, new_password?: string) => {
-    if (!token) throw new Error("Not authenticated")
+  const updateProfile = async (
+    displayName: string,
+    currentPassword?: string,
+    newPassword?: string,
+  ): Promise<boolean> => {
+    try {
+      const token = localStorage.getItem("auth-token")
+      const response = await fetch("/api/auth/update-profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ displayName, currentPassword, newPassword }),
+      })
 
-    const response = await fetch("/api/auth/update-profile", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ display_name, current_password, new_password }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || "Profile update failed")
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error("Profile update failed:", error)
+      return false
     }
-
-    const data = await response.json()
-    setUser(data.user)
-    localStorage.setItem("user", JSON.stringify(data.user))
   }
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        login,
-        register,
-        logout,
-        updateProfile,
-        loading,
-      }}
-    >
+    <AuthContext.Provider value={{ user, login, register, logout, updateProfile, loading }}>
       {children}
     </AuthContext.Provider>
   )

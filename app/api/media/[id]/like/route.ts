@@ -1,45 +1,49 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@vercel/postgres"
-import { verifyToken } from "@/lib/auth"
+import { put, list } from "@vercel/blob"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const authHeader = request.headers.get("authorization")
-    const token = authHeader?.replace("Bearer ", "")
+    const { blobs } = await list({ prefix: "media.json" })
 
-    if (!token) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    if (blobs.length === 0) {
+      return NextResponse.json({ error: "No media found" }, { status: 404 })
     }
 
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    const response = await fetch(blobs[0].url)
+    const media = await response.json()
+
+    const mediaIndex = media.findIndex((item: any) => item.id === params.id)
+    if (mediaIndex === -1) {
+      return NextResponse.json({ error: "Media not found" }, { status: 404 })
     }
 
-    const mediaId = params.id
+    const userId = "user1" // In production, get from auth token
+    const mediaItem = media[mediaIndex]
 
-    // Check if user already liked this media
-    const existingLike = await sql`
-      SELECT id FROM likes WHERE user_id = ${user.id} AND media_id = ${mediaId}
-    `
+    if (!mediaItem.likedBy) {
+      mediaItem.likedBy = []
+    }
 
-    if (existingLike.rows.length > 0) {
-      // Unlike - remove the like
-      await sql`
-        DELETE FROM likes WHERE user_id = ${user.id} AND media_id = ${mediaId}
-      `
-      console.log(`User ${user.username} unliked media ${mediaId}`)
-      return NextResponse.json({ liked: false, message: "Media unliked" })
+    if (mediaItem.likedBy.includes(userId)) {
+      // Unlike
+      mediaItem.likedBy = mediaItem.likedBy.filter((id: string) => id !== userId)
+      mediaItem.likes = Math.max(0, (mediaItem.likes || 0) - 1)
     } else {
-      // Like - add the like
-      await sql`
-        INSERT INTO likes (user_id, media_id) VALUES (${user.id}, ${mediaId})
-      `
-      console.log(`User ${user.username} liked media ${mediaId}`)
-      return NextResponse.json({ liked: true, message: "Media liked" })
+      // Like
+      mediaItem.likedBy.push(userId)
+      mediaItem.likes = (mediaItem.likes || 0) + 1
     }
+
+    media[mediaIndex] = mediaItem
+
+    // Save updated media data
+    await put("media.json", JSON.stringify(media, null, 2), {
+      access: "public",
+    })
+
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Like error:", error)
-    return NextResponse.json({ error: "Failed to process like" }, { status: 500 })
+    return NextResponse.json({ error: "Like failed" }, { status: 500 })
   }
 }
