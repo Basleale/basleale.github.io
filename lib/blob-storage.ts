@@ -85,7 +85,7 @@ export class BlobStorage {
     const blobKey = createBlobKey("public-messages", `${id}.json`)
     await put(blobKey, JSON.stringify(fullMessage), {
       access: "public",
-      token: "vercel_blob_rw_5UFG312mpLZOjrgt_w4QIybQYmJk3MDGVFM0f5BDTSBXDVY",
+      token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
     })
 
     return fullMessage
@@ -136,7 +136,7 @@ export class BlobStorage {
     const blobKey = createBlobKey("private-messages", `${id}.json`)
     await put(blobKey, JSON.stringify(fullMessage), {
       access: "public",
-      token: "vercel_blob_rw_5UFG312mpLZOjrgt_w4QIybQYmJk3MDGVFM0f5BDTSBXDVY",
+      token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
     })
 
     return fullMessage
@@ -188,7 +188,7 @@ export class BlobStorage {
 
     await put(blobKey, JSON.stringify(fullComment), {
       access: "public",
-      token: "vercel_blob_rw_5UFG312mpLZOjrgt_w4QIybQYmJk3MDGVFM0f5BDTSBXDVY",
+      token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
     })
 
     return fullComment
@@ -240,7 +240,7 @@ export class BlobStorage {
 
     await put(blobKey, JSON.stringify(fullLike), {
       access: "public",
-      token: "vercel_blob_rw_5UFG312mpLZOjrgt_w4QIybQYmJk3MDGVFM0f5BDTSBXDVY",
+      token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
     })
 
     return fullLike
@@ -263,7 +263,7 @@ export class BlobStorage {
           const like = await response.json()
           if (like.userId === userId) {
             await del(blob.url, {
-                token: "vercel_blob_rw_5UFG312mpLZOjrgt_w4QIybQYmJk3MDGVFM0f5BDTSBXDVY",
+                token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
             })
             break
           }
@@ -326,7 +326,7 @@ export class BlobStorage {
     const blobKey = createBlobKey("users", `${id}.json`)
     await put(blobKey, JSON.stringify(fullUser), {
       access: "public",
-      token: "vercel_blob_rw_5UFG312mpLZOjrgt_w4QIybQYmJk3MDGVFM0f5BDTSBXDVY",
+      token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
     })
 
     return fullUser
@@ -345,7 +345,7 @@ export class BlobStorage {
       if (userBlob) {
         await put(userBlob.pathname, JSON.stringify(updatedUser), {
           access: "public",
-          token: "vercel_blob_rw_5UFG312mpLZOjrgt_w4QIybQYmJk3MDGVFM0f5BDTSBXDVY",
+          token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
         });
          return updatedUser
       }

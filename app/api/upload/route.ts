@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
         const blob = await put(`media/${uniqueName}`, file, {
           access: "public",
-          token: "vercel_blob_rw_5UFG312mpLZOjrgt_w4QIybQYmJk3MDGVFM0f5BDTSBXDVY",
+          token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
         })
 
         console.log(`Successfully uploaded: ${uniqueName} -> ${blob.url}`)

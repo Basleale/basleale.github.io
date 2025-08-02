@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const filename = `voice-public-${timestamp}-${Math.random().toString(36).substr(2, 9)}.webm`
     const blob = await put(`voice-messages/public/${filename}`, audioFile, {
       access: "public",
-      token: "vercel_blob_rw_5UFG312mpLZOjrgt_w4QIybQYmJk3MDGVFM0f5BDTSBXDVY",
+      token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
     })
 
     // Create message with voice URL
