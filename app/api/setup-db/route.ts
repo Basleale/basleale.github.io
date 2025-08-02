@@ -1,21 +1,48 @@
 import { NextResponse } from "next/server"
-import { put } from "@vercel/blob"
+import { sql } from "@vercel/postgres"
 
 export async function POST() {
   try {
-    // Initialize empty text files
-    const emptyContent = ""
+    // Create users table
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `
 
-    await Promise.all([
-      put("users.txt", emptyContent, { access: "public" }),
-      put("media.txt", emptyContent, { access: "public" }),
-      put("messages.txt", emptyContent, { access: "public" }),
-      put("conversations.txt", emptyContent, { access: "public" }),
-    ])
+    // Create index on email for faster lookups
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
+    `
 
-    return NextResponse.json({ success: true, message: "Database initialized successfully" })
+    // Create media table (if it doesn't exist)
+    await sql`
+      CREATE TABLE IF NOT EXISTS media (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        original_name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        extension VARCHAR(10) NOT NULL,
+        blob_url TEXT NOT NULL,
+        file_size BIGINT NOT NULL,
+        uploaded_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        uploaded_by VARCHAR(255) NOT NULL,
+        tags TEXT[] DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `
+
+    return NextResponse.json({
+      message: "Database tables created successfully!",
+    })
   } catch (error) {
-    console.error("Database initialization failed:", error)
-    return NextResponse.json({ success: false, message: "Failed to initialize database" }, { status: 500 })
+    console.error("Database setup error:", error)
+    return NextResponse.json({ error: "Failed to setup database tables" }, { status: 500 })
   }
 }

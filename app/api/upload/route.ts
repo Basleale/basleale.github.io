@@ -1,56 +1,72 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { put, list } from "@vercel/blob"
+import { put } from "@vercel/blob"
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
-    const file = formData.get("file") as File
-    const title = formData.get("title") as string
-    const description = formData.get("description") as string
+    const files = formData.getAll("files") as File[]
 
-    if (!file || !title) {
-      return NextResponse.json({ error: "File and title are required" }, { status: 400 })
+    if (!files || files.length === 0) {
+      return NextResponse.json({ error: "No files provided" }, { status: 400 })
     }
 
-    // Upload file to Vercel Blob
-    const blob = await put(file.name, file, {
-      access: "public",
+    console.log(`Processing ${files.length} files for upload`)
+
+    const uploadPromises = files.map(async (file) => {
+      try {
+        console.log(`Uploading file: ${file.name} (${file.size} bytes)`)
+
+        // Generate a unique filename to avoid conflicts
+        const timestamp = Date.now()
+        const extension = file.name.split(".").pop()
+        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "")
+        const uniqueName = `${nameWithoutExt}-${timestamp}.${extension}`
+
+        // Upload to Vercel Blob
+        const blob = await put(uniqueName, file, {
+          access: "public",
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+        })
+
+        console.log(`Successfully uploaded: ${uniqueName} -> ${blob.url}`)
+
+        // Determine file type
+        const imageExtensions = ["jpg", "jpeg", "png", "gif", "webp", "svg"]
+        const videoExtensions = ["mp4", "mov", "avi", "mkv", "webm"]
+        const ext = extension?.toLowerCase() || ""
+
+        let type: "image" | "video" = "image"
+        if (videoExtensions.includes(ext)) {
+          type = "video"
+        }
+
+        return {
+          name: uniqueName,
+          originalName: file.name,
+          type,
+          extension: ext,
+          url: blob.url,
+          size: file.size,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: "User",
+          tags: [],
+        }
+      } catch (error) {
+        console.error(`Failed to upload ${file.name}:`, error)
+        throw error
+      }
     })
 
-    // Get current media data
-    const { blobs } = await list({ prefix: "media.json" })
-    let media = []
+    const uploadedFiles = await Promise.all(uploadPromises)
 
-    if (blobs.length > 0) {
-      const response = await fetch(blobs[0].url)
-      media = await response.json()
-    }
+    console.log(`Successfully uploaded ${uploadedFiles.length} files`)
 
-    // Create new media item
-    const newMedia = {
-      id: Date.now().toString(),
-      title,
-      description,
-      url: blob.url,
-      type: file.type,
-      userId: "user1", // In production, get from auth token
-      username: "user1",
-      displayName: "User One",
-      createdAt: new Date().toISOString(),
-      likes: 0,
-      likedBy: [],
-    }
-
-    media.unshift(newMedia)
-
-    // Save updated media data
-    await put("media.json", JSON.stringify(media, null, 2), {
-      access: "public",
+    return NextResponse.json({
+      success: true,
+      files: uploadedFiles,
     })
-
-    return NextResponse.json({ success: true, media: newMedia })
   } catch (error) {
     console.error("Upload error:", error)
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to upload files" }, { status: 500 })
   }
 }
