@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { BlobStorage } from "@/lib/blob-storage";
+import { getPublicMessages, savePublicMessages } from "@/lib/storage";
 import { R2, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/r2-client";
+import { randomUUID } from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,9 +10,11 @@ export async function POST(request: NextRequest) {
     const audioFile = formData.get("audio") as File;
     const senderId = formData.get("senderId") as string;
     const senderName = formData.get("senderName") as string;
+    const senderProfilePicture = formData.get("senderProfilePicture") as string;
 
-    if (!audioFile) {
-      return NextResponse.json({ error: "Audio file required" }, { status: 400 });
+
+    if (!audioFile || !senderId || !senderName) {
+      return NextResponse.json({ error: "Missing required form data" }, { status: 400 });
     }
 
     const Body = (await audioFile.arrayBuffer()) as Buffer;
@@ -28,14 +31,20 @@ export async function POST(request: NextRequest) {
 
     const voiceUrl = `${R2_PUBLIC_URL}/${key}`;
 
-    const message = await BlobStorage.addPublicMessage({
-      voiceUrl: voiceUrl,
-      senderId: senderId.trim(),
-      senderName: senderName.trim(),
-      type: "voice",
-    });
+    const messages = await getPublicMessages();
+    const newMessage = {
+        id: randomUUID(),
+        senderId,
+        senderName,
+        senderProfilePicture,
+        type: "voice",
+        voiceUrl: voiceUrl,
+        createdAt: new Date().toISOString()
+    };
+    messages.push(newMessage);
+    await savePublicMessages(messages);
 
-    return NextResponse.json({ message });
+    return NextResponse.json({ message: newMessage });
   } catch (error) {
     console.error("Error creating voice message:", error);
     return NextResponse.json({ error: "Failed to create voice message" }, { status: 500 });
