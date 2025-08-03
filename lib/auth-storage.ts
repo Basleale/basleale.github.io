@@ -1,6 +1,6 @@
+// lib/auth-storage.ts
 import bcrypt from "bcryptjs";
 import {
-  ListObjectsV2Command,
   PutObjectCommand,
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
@@ -29,16 +29,9 @@ export class AuthStorage {
       return JSON.parse(content);
     } catch (error: any) {
       if (error.name === "NoSuchKey") {
-        // File doesn't exist, create demo user
-        const demoUser: User = {
-          id: "demo",
-          name: "Demo User",
-          email: "demo@example.com",
-          passwordHash: await bcrypt.hash("password", 12),
-          createdAt: new Date().toISOString(),
-        };
-        await this.saveUsers([demoUser]);
-        return [demoUser];
+        // If the users file doesn't exist, create it with an empty array
+        await this.saveUsers([]);
+        return [];
       }
       console.error("Error getting users:", error);
       return [];
@@ -61,6 +54,11 @@ export class AuthStorage {
     }
   }
 
+  static async getUserByEmail(email: string): Promise<User | undefined> {
+    const users = await this.getUsers();
+    return users.find((user) => user.email === email);
+  }
+
   static async createUser(name: string, email: string, password: string): Promise<User> {
     const users = await this.getUsers();
     const existingUser = users.find((user) => user.email === email);
@@ -70,7 +68,7 @@ export class AuthStorage {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const newUser: User = {
-      id: Date.now().toString(),
+      id: `user_${Date.now()}`,
       name,
       email,
       passwordHash,
@@ -80,20 +78,5 @@ export class AuthStorage {
     users.push(newUser);
     await this.saveUsers(users);
     return newUser;
-  }
-
-  static async validateUser(email: string, password: string): Promise<User> {
-    const users = await this.getUsers();
-    const user = users.find((u) => u.email === email);
-
-    if (!user) {
-      throw new Error("No account found with this email address");
-    }
-
-    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-    if (!isValidPassword) {
-      throw new Error("Incorrect password");
-    }
-    return user;
   }
 }
