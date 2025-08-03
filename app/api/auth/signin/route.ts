@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { findUserByEmail } from "@/lib/db";
+import { getUsers } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,17 +9,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
     }
 
-    const user = await findUserByEmail(email.trim());
+    const users = await getUsers();
+    const user = users.find(u => u.email === email.trim());
+
     if (!user) {
       return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
     if (!isValidPassword) {
       return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
     }
 
-    const { password_hash, ...safeUser } = user;
+    const { passwordHash, ...safeUser } = user;
     return NextResponse.json({ user: safeUser });
 
   } catch (error) {

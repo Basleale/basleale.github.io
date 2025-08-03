@@ -1,4 +1,3 @@
-// lib/r2-client.ts
 import { S3Client } from "@aws-sdk/client-s3";
 
 const accountId = "4zn9I5zfRk2zGI0MG33koQ21fbFrFwrCrJGg4LS3";
@@ -15,7 +14,6 @@ export const R2 = new S3Client({
 });
 
 export const R2_BUCKET_NAME = "media";
-// This is the correct public URL you enabled
 export const R2_PUBLIC_URL = "https://pub-6a5367f94b86467a9be9828985ba8b18.r2.dev";
 
 // Helper function to stream SDK response body to a string
