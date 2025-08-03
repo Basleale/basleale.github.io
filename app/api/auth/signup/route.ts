@@ -1,6 +1,7 @@
 // app/api/auth/signup/route.ts
 import { type NextRequest, NextResponse } from "next/server";
-import { AuthStorage } from "@/lib/auth-storage";
+import bcrypt from "bcryptjs";
+import { findUserByEmail, createUser } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,23 +17,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
     }
 
-    console.log(`[Sign Up] Attempting to sign up user with email: ${email}`);
-
-    const existingUser = await AuthStorage.getUserByEmail(email.trim());
+    const existingUser = await findUserByEmail(email.trim());
     if (existingUser) {
-      console.log(`[Sign Up] User already exists: ${email}`);
-      return NextResponse.json({ error: "User already exists" }, { status: 400 });
+      return NextResponse.json({ error: "User with this email already exists" }, { status: 400 });
     }
 
-    console.log("[Sign Up] Creating user...");
-    const user = await AuthStorage.createUser(name.trim(), email.trim(), password);
-
-    console.log(`[Sign Up] User created successfully with ID: ${user.id}`);
+    const passwordHash = await bcrypt.hash(password, 12);
     
-    const { passwordHash: _, ...safeUser } = user;
-    return NextResponse.json({ user: safeUser });
+    const user = await createUser(name.trim(), email.trim(), passwordHash);
+
+    return NextResponse.json({ user });
   } catch (error) {
-    console.error("[Sign Up] Error creating user:", error);
+    console.error("[Sign Up] Error:", error);
     return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
   }
 }

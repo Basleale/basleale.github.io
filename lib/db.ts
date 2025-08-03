@@ -1,85 +1,20 @@
-import {
-  PutObjectCommand,
-  ListObjectsV2Command,
-  DeleteObjectCommand,
-  GetObjectCommand
-} from "@aws-sdk/client-s3";
-import { R2, R2_BUCKET_NAME, streamToString, R2_PUBLIC_URL } from "./r2-client";
+// lib/db.ts
+import { sql } from "@vercel/postgres";
+import { BlobUser } from "./blob-storage"; // Re-using the interface
 
-// ... (Interfaces remain the same) ...
-export interface MediaItem {
-    id: string
-    name: string
-    original_name: string
-    type: "image" | "video"
-    extension: string
-    blob_url: string
-    file_size: number
-    uploaded_at: string
-    uploaded_by: string
-    tags: string[]
-    created_at: string
-    updated_at: string
-    url?: string
-  }
-  
-  export interface User {
-    id: string
-    name: string
-    email: string
-    password_hash: string
-    created_at: string
-    updated_at: string
-    profilePicture?: string
-  }
-
-async function listAndFetchDb(prefix: string) {
-    const listCommand = new ListObjectsV2Command({ Bucket: R2_BUCKET_NAME, Prefix: prefix });
-    const { Contents } = await R2.send(listCommand);
-    if (!Contents) return [];
-
-    const objects = await Promise.all(Contents.map(async (item) => {
-        try {
-            const getCommand = new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: item.Key });
-            const response = await R2.send(getCommand);
-            const content = await streamToString(response.Body);
-            return JSON.parse(content);
-        } catch (e) {
-            return null;
-        }
-    }));
-    return objects.filter(Boolean);
+// User Management
+export async function findUserByEmail(email: string) {
+  const { rows } = await sql`SELECT * FROM users WHERE email = ${email} LIMIT 1;`;
+  return rows[0] as BlobUser | undefined;
 }
 
-export class MediaDatabase {
-  static async getAllMedia(): Promise<MediaItem[]> {
-    const items = await listAndFetchDb("media-items/");
-    return items
-        .map((item: MediaItem) => ({ ...item, url: item.blob_url }))
-        .sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
-  }
-
-  static async insertMedia(mediaItems: Omit<MediaItem, "id" | "created_at" | "updated_at">[]): Promise<MediaItem[]> {
-    const insertedItems: MediaItem[] = [];
-    for (const item of mediaItems) {
-      const id = `media_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const fullItem: MediaItem = {
-        ...item,
-        id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        url: item.blob_url,
-      };
-
-      const command = new PutObjectCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: `media-items/${id}.json`,
-        Body: JSON.stringify(fullItem),
-        ContentType: "application/json",
-      });
-      await R2.send(command);
-      insertedItems.push(fullItem);
-    }
-    return insertedItems;
-  }
+export async function createUser(name: string, email: string, passwordHash: string) {
+  const { rows } = await sql`
+    INSERT INTO users (name, email, password_hash)
+    VALUES (${name}, ${email}, ${passwordHash})
+    RETURNING id, name, email, created_at, profile_picture;
+  `;
+  return rows[0];
 }
+
+// You can expand this with more database functions as needed
