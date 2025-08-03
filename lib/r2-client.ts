@@ -1,8 +1,16 @@
 import { S3Client } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@aws-sdk/node-http-handler";
+import https from "https";
 
 const accountId = "4zn9I5zfRk2zGI0MG33koQ21fbFrFwrCrJGg4LS3";
 const accessKeyId = "aaac981d15929b598f5014d8592a7bb3";
 const secretAccessKey = "c604128022c2180a84057904a8c6a19172d26bc96540c81ab19397e20039864b";
+
+// Create a custom HTTPS agent to enforce a modern TLS version
+const agent = new https.Agent({
+  minVersion: "TLSv1.2",
+  keepAlive: true,
+});
 
 export const R2 = new S3Client({
   region: "auto",
@@ -11,6 +19,10 @@ export const R2 = new S3Client({
     accessKeyId,
     secretAccessKey,
   },
+  // Apply the custom agent to the S3 client's HTTP handler
+  requestHandler: new NodeHttpHandler({
+    httpsAgent: agent,
+  }),
 });
 
 export const R2_BUCKET_NAME = "media";
