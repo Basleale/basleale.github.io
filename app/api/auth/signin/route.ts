@@ -9,28 +9,32 @@ export async function POST(request: NextRequest) {
     if (!email || !email.trim()) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
-
     if (!password) {
       return NextResponse.json({ error: "Password is required" }, { status: 400 })
     }
 
-    // Find user
+    console.log(`[Sign In] Attempting to sign in user: ${email}`);
+    
     const user = await BlobStorage.getUserByEmail(email.trim())
     if (!user) {
+      console.log(`[Sign In] User not found: ${email}`);
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Verify password
+    console.log(`[Sign In] User found with ID: ${user.id}. Comparing passwords.`);
+    
     const isValidPassword = await bcrypt.compare(password, user.passwordHash)
     if (!isValidPassword) {
+      console.log(`[Sign In] Invalid password for user: ${user.id}`);
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Return user without password hash
+    console.log(`[Sign In] Password is valid. Sign-in successful for user: ${user.id}`);
+    
     const { passwordHash: _, ...safeUser } = user
     return NextResponse.json({ user: safeUser })
   } catch (error) {
-    console.error("Error signing in:", error)
+    console.error("[Sign In] Error signing in:", error)
     return NextResponse.json({ error: "Failed to sign in" }, { status: 500 })
   }
 }

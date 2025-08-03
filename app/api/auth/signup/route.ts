@@ -9,36 +9,37 @@ export async function POST(request: NextRequest) {
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
-
     if (!email || !email.trim()) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
-
     if (!password || password.length < 6) {
       return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
     }
 
-    // Check if user already exists
+    console.log(`[Sign Up] Attempting to sign up user with email: ${email}`);
+
     const existingUser = await BlobStorage.getUserByEmail(email.trim())
     if (existingUser) {
+      console.log(`[Sign Up] User already exists: ${email}`);
       return NextResponse.json({ error: "User already exists" }, { status: 400 })
     }
 
-    // Hash password
+    console.log("[Sign Up] Hashing password...");
     const passwordHash = await bcrypt.hash(password, 12)
-
-    // Create user
+    
+    console.log("[Sign Up] Adding user to storage...");
     const user = await BlobStorage.addUser({
       name: name.trim(),
       email: email.trim(),
       passwordHash,
     })
 
-    // Return user without password hash
+    console.log(`[Sign Up] User created successfully with ID: ${user.id}`);
+    
     const { passwordHash: _, ...safeUser } = user
     return NextResponse.json({ user: safeUser })
   } catch (error) {
-    console.error("Error creating user:", error)
+    console.error("[Sign Up] Error creating user:", error)
     return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
   }
 }
