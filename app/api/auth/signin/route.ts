@@ -1,31 +1,36 @@
-import { type NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { getUsers } from "@/lib/storage";
+import { type NextRequest, NextResponse } from "next/server"
+import bcrypt from "bcryptjs"
+import { BlobStorage } from "@/lib/blob-storage"
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
+    const { email, password } = await request.json()
+
+    if (!email || !email.trim()) {
+      return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
 
-    const users = await getUsers();
-    const user = users.find(u => u.email === email.trim());
+    if (!password) {
+      return NextResponse.json({ error: "Password is required" }, { status: 400 })
+    }
 
+    // Find user
+    const user = await BlobStorage.getUserByEmail(email.trim())
     if (!user) {
-      return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash)
     if (!isValidPassword) {
-      return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    const { passwordHash, ...safeUser } = user;
-    return NextResponse.json({ user: safeUser });
-
+    // Return user without password hash
+    const { passwordHash: _, ...safeUser } = user
+    return NextResponse.json({ user: safeUser })
   } catch (error) {
-    console.error("[SIGNIN ERROR]", error);
-    return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });
+    console.error("Error signing in:", error)
+    return NextResponse.json({ error: "Failed to sign in" }, { status: 500 })
   }
 }

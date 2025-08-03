@@ -1,40 +1,44 @@
-import { type NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { getUsers, saveUsers } from "@/lib/storage";
-import { randomUUID } from 'crypto';
+import { type NextRequest, NextResponse } from "next/server"
+import bcrypt from "bcryptjs"
+import { BlobStorage } from "@/lib/blob-storage"
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password } = await request.json();
-    if (!name || !email || !password || password.length < 6) {
-      return NextResponse.json({ error: "Invalid input provided." }, { status: 400 });
+    const { name, email, password } = await request.json()
+
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
 
-    const users = await getUsers();
-    const existingUser = users.find(u => u.email === email.trim());
+    if (!email || !email.trim()) {
+      return NextResponse.json({ error: "Email is required" }, { status: 400 })
+    }
 
+    if (!password || password.length < 6) {
+      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
+    }
+
+    // Check if user already exists
+    const existingUser = await BlobStorage.getUserByEmail(email.trim())
     if (existingUser) {
-      return NextResponse.json({ error: "User with this email already exists." }, { status: 409 });
+      return NextResponse.json({ error: "User already exists" }, { status: 400 })
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
-    const newUser = {
-      id: randomUUID(),
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 12)
+
+    // Create user
+    const user = await BlobStorage.addUser({
       name: name.trim(),
       email: email.trim(),
       passwordHash,
-      createdAt: new Date().toISOString(),
-      profilePicture: ""
-    };
+    })
 
-    users.push(newUser);
-    await saveUsers(users);
-    
-    const { passwordHash: _, ...safeUser } = newUser;
-    return NextResponse.json({ user: safeUser });
-
+    // Return user without password hash
+    const { passwordHash: _, ...safeUser } = user
+    return NextResponse.json({ user: safeUser })
   } catch (error) {
-    console.error("[SIGNUP ERROR]", error);
-    return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });
+    console.error("Error creating user:", error)
+    return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
   }
 }

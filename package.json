@@ -10,8 +10,6 @@
   },
   "dependencies": {
     "@auth/core": "latest",
-    "@aws-sdk/client-s3": "^3.859.0",
-    "@aws-sdk/node-http-handler": "^3.374.0",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
     "@radix-ui/react-aspect-ratio": "latest",
@@ -42,7 +40,7 @@
     "@vercel/blob": "latest",
     "@vercel/kv": "latest",
     "@vercel/postgres": "latest",
-    "bcryptjs": "^3.0.2",
+    "bcryptjs": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "latest",

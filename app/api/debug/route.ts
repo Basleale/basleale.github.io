@@ -1,18 +1,39 @@
-import { NextResponse } from "next/server";
-import { getMedia } from "@/lib/storage"; // Updated import
+import { NextResponse } from "next/server"
+import { list } from "@vercel/blob"
+import { MediaDatabase } from "@/lib/db"
 
 export async function GET() {
   try {
-    // Check if we can read the media metadata from R2
-    const mediaMetadata = await getMedia();
+    // Check database
+    const dbMedia = await MediaDatabase.getAllMedia()
+
+    // Check blob storage
+    const { blobs } = await list()
 
     return NextResponse.json({
-      message: "Successfully connected to R2 and fetched media metadata.",
-      media_count: mediaMetadata.length,
-      sample_item: mediaMetadata.length > 0 ? mediaMetadata[0] : "No media found."
-    });
+      database: {
+        count: dbMedia.length,
+        items: dbMedia.slice(0, 3).map((item) => ({
+          id: item.id,
+          name: item.name,
+          type: item.type,
+          blob_url: item.blob_url,
+          uploaded_at: item.uploaded_at,
+          tags: item.tags,
+        })),
+      },
+      blobs: {
+        count: blobs.length,
+        items: blobs.slice(0, 3).map((blob) => ({
+          pathname: blob.pathname,
+          url: blob.url,
+          size: blob.size,
+          uploadedAt: blob.uploadedAt,
+        })),
+      },
+    })
   } catch (error) {
-    console.error("Debug error:", error);
-    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+    console.error("Debug error:", error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

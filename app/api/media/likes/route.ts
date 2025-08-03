@@ -1,65 +1,62 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { getMedia, saveMedia } from "@/lib/storage";
+import { type NextRequest, NextResponse } from "next/server"
+import { BlobStorage } from "@/lib/blob-storage"
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const mediaId = searchParams.get("mediaId");
-    const userId = searchParams.get("userId");
+    const { searchParams } = new URL(request.url)
+    const mediaId = searchParams.get("mediaId")
+    const userId = searchParams.get("userId")
 
-    if (!mediaId) {
-      return NextResponse.json({ error: "Media ID required" }, { status: 400 });
+    if (!mediaId || !mediaId.trim()) {
+      return NextResponse.json({ error: "Valid Media ID required" }, { status: 400 })
     }
 
-    const allMedia = await getMedia();
-    const mediaItem = allMedia.find(m => m.id === mediaId);
-    
-    if (!mediaItem) {
-        return NextResponse.json({ count: 0, userLiked: false });
-    }
+    const likes = await BlobStorage.getLikes(mediaId)
+    const count = likes.length
+    const userLiked = userId ? likes.some((like) => like.userId === userId) : false
 
-    const likes = mediaItem.likes || [];
-    const userLiked = userId ? likes.includes(userId) : false;
-
-    return NextResponse.json({ count: likes.length, userLiked });
+    return NextResponse.json({ count, userLiked })
   } catch (error) {
-    console.error("Error fetching likes:", error);
-    return NextResponse.json({ error: "Failed to fetch likes" }, { status: 500 });
+    console.error("Error fetching likes:", error)
+    return NextResponse.json({ error: "Failed to fetch likes" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { mediaId, userId, action } = await request.json();
-    if (!mediaId || !userId || !action) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const { mediaId, userId, userName, action } = await request.json()
+
+    if (!mediaId || !mediaId.trim()) {
+      return NextResponse.json({ error: "Valid Media ID required" }, { status: 400 })
     }
 
-    const allMedia = await getMedia();
-    const mediaIndex = allMedia.findIndex(m => m.id === mediaId);
-
-    if (mediaIndex === -1) {
-        return NextResponse.json({ error: "Media not found" }, { status: 404 });
+    if (!userId || !userId.trim()) {
+      return NextResponse.json({ error: "Valid User ID required" }, { status: 400 })
     }
 
-    // Ensure the likes array exists
-    if (!allMedia[mediaIndex].likes) {
-        allMedia[mediaIndex].likes = [];
+    if (!userName || !userName.trim()) {
+      return NextResponse.json({ error: "Valid User Name required" }, { status: 400 })
     }
 
     if (action === "like") {
-        if (!allMedia[mediaIndex].likes.includes(userId)) {
-            allMedia[mediaIndex].likes.push(userId);
-        }
+      await BlobStorage.addLike({
+        mediaId: mediaId.trim(),
+        userId: userId.trim(),
+        userName: userName.trim(),
+      })
     } else if (action === "unlike") {
-        allMedia[mediaIndex].likes = allMedia[mediaIndex].likes.filter((id: string) => id !== userId);
+      await BlobStorage.removeLike(mediaId.trim(), userId.trim())
+    } else {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
 
-    await saveMedia(allMedia);
+    // Get updated count
+    const likes = await BlobStorage.getLikes(mediaId)
+    const count = likes.length
 
-    return NextResponse.json({ success: true, count: allMedia[mediaIndex].likes.length });
+    return NextResponse.json({ success: true, count })
   } catch (error) {
-    console.error("Error updating like:", error);
-    return NextResponse.json({ error: "Failed to update like" }, { status: 500 });
+    console.error("Error updating like:", error)
+    return NextResponse.json({ error: "Failed to update like" }, { status: 500 })
   }
 }

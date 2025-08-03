@@ -1,50 +1,61 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { getComments, saveComments } from "@/lib/storage";
-import { randomUUID } from 'crypto';
+import { type NextRequest, NextResponse } from "next/server"
+import { BlobStorage } from "@/lib/blob-storage"
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const mediaId = searchParams.get("mediaId");
+    const { searchParams } = new URL(request.url)
+    const mediaId = searchParams.get("mediaId")
 
-    if (!mediaId) {
-      return NextResponse.json({ error: "Media ID required" }, { status: 400 });
+    if (!mediaId || !mediaId.trim()) {
+      return NextResponse.json({ error: "Valid Media ID required" }, { status: 400 })
     }
 
-    const comments = await getComments(mediaId);
-    return NextResponse.json({ comments });
+    console.log("Fetching comments for mediaId:", mediaId)
+    const comments = await BlobStorage.getComments(mediaId)
+    console.log("Found comments:", comments.length)
+
+    return NextResponse.json({ comments })
   } catch (error) {
-    console.error("Error fetching comments:", error);
-    return NextResponse.json({ error: "Failed to fetch comments" }, { status: 500 });
+    console.error("Error fetching comments:", error)
+    return NextResponse.json({ error: "Failed to fetch comments" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { mediaId, userId, userName, userProfilePicture, content } = await request.json();
+    const body = await request.json()
+    const { mediaId, userId, userName, userProfilePicture, content } = body
 
-    if (!mediaId || !userId || !userName || !content) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    console.log("Creating comment with data:", { mediaId, userId, userName, content })
+
+    if (!mediaId || !mediaId.trim()) {
+      return NextResponse.json({ error: "Valid Media ID required" }, { status: 400 })
+    }
+    if (!userId || !userId.trim()) {
+      return NextResponse.json({ error: "Valid User ID required" }, { status: 400 })
+    }
+    if (!userName || !userName.trim()) {
+      return NextResponse.json({ error: "Valid User Name required" }, { status: 400 })
+    }
+    if (!content || !content.trim()) {
+      return NextResponse.json({ error: "Comment content required" }, { status: 400 })
     }
 
-    const comments = await getComments(mediaId);
-
-    const newComment = {
-      id: randomUUID(),
-      mediaId,
-      userId,
-      userName,
+    const comment = await BlobStorage.addComment({
+      mediaId: mediaId.trim(),
+      userId: userId.trim(),
+      userName: userName.trim(),
       userProfilePicture,
-      content,
-      createdAt: new Date().toISOString()
-    };
+      content: content.trim(),
+    })
 
-    comments.push(newComment);
-    await saveComments(mediaId, comments);
-
-    return NextResponse.json({ comment: newComment });
+    console.log("Comment created successfully:", comment)
+    return NextResponse.json({ comment })
   } catch (error) {
-    console.error("Error creating comment:", error);
-    return NextResponse.json({ error: "Failed to create comment" }, { status: 500 });
+    console.error("Error creating comment:", error)
+    return NextResponse.json({
+      error: "Failed to create comment",
+      details: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 })
   }
 }

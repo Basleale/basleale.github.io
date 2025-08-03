@@ -1,22 +1,40 @@
 "use client"
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { AuthForm } from "@/components/auth-form"
 
 export default function HomePage() {
-  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    router.push("/dashboard");
-  }, [router]);
+    const checkAuth = () => {
+      const user = localStorage.getItem("currentUser")
+      if (user) {
+        setIsAuthenticated(true)
+        router.push("/dashboard")
+      } else {
+        setIsAuthenticated(false)
+      }
+      setIsLoading(false)
+    }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-slate-800 to-red-950">
-      <div className="flex items-center text-white text-xl">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Redirecting to Dashboard...
+    checkAuth()
+  }, [router])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-slate-800 to-red-950">
+        <div className="text-white text-xl">Loading...</div>
       </div>
-    </div>
-  );
+    )
+  }
+
+  if (isAuthenticated) {
+    return null // Will redirect to dashboard
+  }
+
+  return <AuthForm />
 }

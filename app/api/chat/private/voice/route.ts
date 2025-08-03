@@ -1,53 +1,57 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { getPrivateMessages, savePrivateMessages } from "@/lib/storage";
-import { R2, R2_BUCKET_NAME, R2_PUBLIC_URL } from "@/lib/r2-client";
-import { randomUUID } from 'crypto';
+import { type NextRequest, NextResponse } from "next/server"
+import { put } from "@vercel/blob"
+import { BlobStorage } from "@/lib/blob-storage"
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const audioFile = formData.get("audio") as File;
-    const senderId = formData.get("senderId") as string;
-    const senderName = formData.get("senderName") as string;
-    const receiverId = formData.get("receiverId") as string;
-    const receiverName = formData.get("receiverName") as string;
+    const formData = await request.formData()
+    const audioFile = formData.get("audio") as File
+    const senderId = formData.get("senderId") as string
+    const senderName = formData.get("senderName") as string
+    const receiverId = formData.get("receiverId") as string
+    const receiverName = formData.get("receiverName") as string
 
-    if (!audioFile || !senderId || !receiverId) {
-      return NextResponse.json({ error: "Missing required form data" }, { status: 400 });
+    if (!audioFile) {
+      return NextResponse.json({ error: "Audio file required" }, { status: 400 })
     }
 
-    const Body = (await audioFile.arrayBuffer()) as Buffer;
-    const key = `voice-messages/private/voice-${Date.now()}.webm`;
+    if (!senderId || !senderId.trim()) {
+      return NextResponse.json({ error: "Valid Sender ID required" }, { status: 400 })
+    }
 
-    const command = new PutObjectCommand({
-      Bucket: R2_BUCKET_NAME,
-      Key: key,
-      Body,
-      ContentType: audioFile.type,
-    });
-    
-    await R2.send(command);
-    
-    const voiceUrl = `${R2_PUBLIC_URL}/${key}`;
+    if (!senderName || !senderName.trim()) {
+      return NextResponse.json({ error: "Valid Sender Name required" }, { status: 400 })
+    }
 
-    const messages = await getPrivateMessages(senderId, receiverId);
-    const newMessage = {
-      id: randomUUID(),
-      voiceUrl: voiceUrl,
-      senderId,
-      senderName,
-      receiverId,
-      receiverName,
+    if (!receiverId || !receiverId.trim()) {
+      return NextResponse.json({ error: "Valid Receiver ID required" }, { status: 400 })
+    }
+
+    if (!receiverName || !receiverName.trim()) {
+      return NextResponse.json({ error: "Valid Receiver Name required" }, { status: 400 })
+    }
+
+    // Upload audio to blob storage in a dedicated voice messages folder
+    const timestamp = Date.now()
+    const filename = `voice-private-${timestamp}-${Math.random().toString(36).substr(2, 9)}.webm`
+    const blob = await put(`voice-messages/private/${filename}`, audioFile, {
+      access: "public",
+      token: "vercel_blob_rw_TMIZgFDsqJjPd1Jh_TfDT8jN8I06r8EImasbiblrJeMUJHU",
+    })
+
+    // Create message with voice URL
+    const message = await BlobStorage.addPrivateMessage({
+      voiceUrl: blob.url,
+      senderId: senderId.trim(),
+      senderName: senderName.trim(),
+      receiverId: receiverId.trim(),
+      receiverName: receiverName.trim(),
       type: "voice",
-      createdAt: new Date().toISOString()
-    };
-    messages.push(newMessage);
-    await savePrivateMessages(senderId, receiverId, messages);
+    })
 
-    return NextResponse.json({ message: newMessage });
+    return NextResponse.json({ message })
   } catch (error) {
-    console.error("Error creating voice message:", error);
-    return NextResponse.json({ error: "Failed to create voice message" }, { status: 500 });
+    console.error("Error creating voice message:", error)
+    return NextResponse.json({ error: "Failed to create voice message" }, { status: 500 })
   }
 }
