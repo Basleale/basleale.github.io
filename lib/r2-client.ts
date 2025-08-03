@@ -7,7 +7,7 @@ const secretAccessKey = "c604128022c2180a84057904a8c6a19172d26bc96540c81ab19397e
 
 export const R2 = new S3Client({
   region: "auto",
-  endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+  endpoint: `https://${accountId}.r2.cloudflarestorage.com`, // This uses the S3 API URL
   credentials: {
     accessKeyId,
     secretAccessKey,
@@ -15,7 +15,8 @@ export const R2 = new S3Client({
 });
 
 export const R2_BUCKET_NAME = "media";
-export const R2_PUBLIC_URL = "https://b4f1cc60e4f2f6c8cfc24588ffdffeb9.r2.cloudflarestorage.com";
+// Use the new Public URL here for viewing files
+export const R2_PUBLIC_URL = "https://pub-6a5367f94b86467a9be9828985ba8b18.r2.dev";
 
 // Helper function to stream SDK response body to a string
 export const streamToString = (stream: any): Promise<string> =>
