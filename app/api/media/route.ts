@@ -9,7 +9,7 @@ export async function GET() {
       Prefix: "media/",
     });
     const { Contents } = await R2.send(command);
-    if (!Contents) {
+    if (!Contents || Contents.length === 0) {
         return NextResponse.json({ media: [] });
     }
 
@@ -31,10 +31,10 @@ export async function GET() {
             blobUrl: url,
             size: item.Size,
             uploadedAt: item.LastModified,
-            uploadedBy: "User",
+            uploadedBy: "User", // This should be stored in metadata if needed
             tags: [],
         };
-    });
+    }).filter(item => item.size && item.size > 0); // Filter out the folder itself
 
     const sortedMedia = media.sort((a, b) => new Date(b.uploadedAt!).getTime() - new Date(a.uploadedAt!).getTime());
     return NextResponse.json({ media: sortedMedia });

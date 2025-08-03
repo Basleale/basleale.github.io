@@ -15,7 +15,6 @@ export const R2 = new S3Client({
 });
 
 export const R2_BUCKET_NAME = "media";
-// The public URL should not end with the bucket name
 export const R2_PUBLIC_URL = "https://b4f1cc60e4f2f6c8cfc24588ffdffeb9.r2.cloudflarestorage.com";
 
 // Helper function to stream SDK response body to a string
