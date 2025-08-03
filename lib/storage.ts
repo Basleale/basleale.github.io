@@ -6,32 +6,45 @@ import {
 } from "@aws-sdk/client-s3";
 import { R2, R2_BUCKET_NAME, streamToString } from "./r2-client";
 
-// --- Generic Read/Write Helpers ---
+// --- Generic Read/Write Helpers with Better Logging ---
 async function getObject<T>(key: string, defaultValue: T): Promise<T> {
   try {
     const command = new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key });
     const response = await R2.send(command);
     const content = await streamToString(response.Body);
+    // Handle case where file is empty but exists
+    if (content === "") {
+        return defaultValue;
+    }
     return JSON.parse(content) as T;
   } catch (error: any) {
     if (error.name === "NoSuchKey") {
-      await saveObject(key, defaultValue); // Create the file if it doesn't exist
+      // File doesn't exist, so we create it with the default value.
+      console.log(`Object with key "${key}" not found. Creating it with default value.`);
+      await saveObject(key, defaultValue);
       return defaultValue;
     }
-    console.error(`Error getting object ${key}:`, error);
-    throw error;
+    // For any other error, log it in detail and re-throw
+    console.error(`Error getting object with key "${key}":`, error);
+    throw new Error(`Failed to read from storage: ${error.message}`);
   }
 }
 
 async function saveObject(key: string, data: any): Promise<void> {
-  const command = new PutObjectCommand({
-    Bucket: R2_BUCKET_NAME,
-    Key: key,
-    Body: JSON.stringify(data, null, 2),
-    ContentType: "application/json",
-  });
-  await R2.send(command);
+    try {
+        const command = new PutObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: key,
+            Body: JSON.stringify(data, null, 2),
+            ContentType: "application/json",
+        });
+        await R2.send(command);
+    } catch (error: any) {
+        console.error(`Error saving object with key "${key}":`, error);
+        throw new Error(`Failed to write to storage: ${error.message}`);
+    }
 }
+
 
 // --- File Keys ---
 const USERS_KEY = "data/users.json";
@@ -86,6 +99,3 @@ export async function saveComments(mediaId: string, comments: any[]) {
     const key = `data/comments/${mediaId}.json`;
     await saveObject(key, comments);
 }
-
-// --- Likes (Managed within the media metadata file) ---
-// Note: We manage likes directly within the media metadata object to reduce file operations.
